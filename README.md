@@ -21,6 +21,7 @@ devtools::install_github("aschluter/ClinPrior")
 
 Gene prioritization according HPOs provided by user. 
 
+| HP code | Description |
 | --- | --- |
 | HP:0004481 | Progressive macrocephaly |
 | HP:0002376 | Developmental regression |
