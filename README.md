@@ -30,8 +30,9 @@ Gene prioritization according HPOs provided by user.
 | HP:0002922 | Increased CSF protein |
 | HP:0000365 | Hearing impairment |
 
-``` r
 
+
+``` r
 HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365"")
 
 Y<-proteinScore(HPOpatient)
