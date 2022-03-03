@@ -13,13 +13,14 @@ You can install the development version from
 ``` r
 install.packages("devtools")
 devtools::install_github("aschluter/ClinPrior")
+library(ClinPrior)
 ```
 
 
 
 ## Gene prioritization
 
-Gene prioritization according HPOs provided by user. 
+Gene prioritization based on user-provided HPOs. 
 
 | HP code | Description |
 | --- | --- |
@@ -44,7 +45,7 @@ Y<-proteinScore(HPOpatient)
 
 ## Score propagation
 
-Propagation of the phenotypic score in the physical and functional multilayer network. 
+Propagation of the phenotypic score in the physical and functional interactomes. 
 
 ``` r
 ClinPriorScore<-MatrixPropagation(Y,alpha=0.2)
@@ -62,4 +63,4 @@ head(ClinPriorScore)
 | ADGRG1 |	9289 |	0.548488778 |	NDUFA1 |	4694 |	0.586792265 |
 | ASPA |	443 |	0.513182187 |	ASPA |	443 |	0.529834244 |
 
-The best genes matching the patient's HPOs.
+The final result provides an ordered list of genes that match the patient's HPOs. The PriorFunct and PriorPhys columns report the phenotypic scores after propagation through the functional and physical gene-gene interactions of the network.
