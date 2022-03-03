@@ -62,9 +62,9 @@ MatrixPropagation<-function(Y,alpha=0.2)
     F[pos] <- F2
 
     resultatFunctional<-cbind(total_unique[order(F,decreasing=T),],F[order(F,decreasing=T)])
-
-
+    ClinPriorScore <- cbind(resultatFunctional,resultatPhysical)
+    colnames(ClinPriorScore) <-c("Symbol", "geneID", "PriorFunct", "Symbol", "geneID", "PriorPhys")
 
     gc()
-    return(cbind(resultatFunctional,resultatPhysical))
+    return(ClinPriorScore)
 }
