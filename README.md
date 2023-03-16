@@ -2,11 +2,12 @@
 
 # ClinPrior
 
-ClinPrior is an interactome-driven prioritization method that predicts the patient's disease gene based on the description of the phenotype in HPO terms. This prioritization is divided into two steps: 
-Gene prioritization
-(1) computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and (2) iterative propagation of this phenotypic score within of a multilayer network with physical and functional interactions.
+ClinPrior is an interactome-driven prioritization method that predicts the patient's disease causal variant  based on the description of the phenotype in HPO terms. This prioritization is divided into two steps: 
 
-Variant prioritization
+- **Gene prioritization:** computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and iterative propagation of this phenotypic score within of a multilayer network with physical and functional interactions. 
+- **Variant prioritization:** filtering and calculation of a variant deleteriousness score.
+
+
 
 ## Installation
 
@@ -56,7 +57,7 @@ Gene prioritization based on user-provided HPOs.
 
 
 ``` r
-HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365"")
+HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
 
 Y<-proteinScore(HPOpatient)
 ```
@@ -64,7 +65,7 @@ Y<-proteinScore(HPOpatient)
 
 
 
-### Score propagation
+#### Score propagation
 
 Propagation of the phenotypic score in the physical and functional interactomes. 
 
@@ -112,6 +113,8 @@ head(ClinPriorGeneScore)
 
 
 
+
+
 ## Variant prioritization
 
 
@@ -122,26 +125,9 @@ Once we have the gene prioritization result (ClinPriorGeneScore in the previous 
 library(vcfR)
 
 vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
-
 variants <- read.vcfR(vcfFile)
-
-
-sampleName = "HG001" # should be same patient code as in the vcf file
-filter = ""
-isCodingVar = TRUE
-frequenceAR = 0.01 # desired MAF in case of recessive inheritance
-frequenceAD = 0.00005 # desired MAF in case of dominant inheritance
-geneQuality = 20
-readDepth = 10
-assembly = "assembly37"
-distSplicThreshold = 1000 # maximum pb distance for intronic variants to exon-intron boundary
-synonymous = "YES" # include or not synonymous variants
-processors = 1
-
-
-variantsFiltered <- readVCF(sampleName,filter,geneQuality,readDepth,variants,assembly,distSplicThreshold,synonymous)
-
-result = priorBestVariantVcfR(variantsFiltered, sampleName, filter,isCodingVar, frequenceAR,frequenceAD, ClinPriorGeneScore, assembly,processors)
+variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
+result = priorBestVariantVcfR(variants = variantsFiltered, sampleName = "HG001",GlobalPhenotypicScore = ClinPriorGeneScore)
 
 head(result)
 ```

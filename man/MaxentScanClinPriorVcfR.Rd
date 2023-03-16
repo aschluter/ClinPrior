@@ -13,9 +13,6 @@ MaxentScanClinPriorVcfR(
 \arguments{
 \item{matrixVariants}{}
 }
-\value{
-
-}
 \description{
 Title
 }

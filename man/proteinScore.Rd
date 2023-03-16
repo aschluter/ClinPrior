@@ -2,16 +2,20 @@
 % Please edit documentation in R/proteinScore.r
 \name{proteinScore}
 \alias{proteinScore}
-\title{Title}
+\title{Phenotypic score for each gene based on the description of the patient in HPO terms}
 \usage{
 proteinScore(HPOpatient)
 }
 \arguments{
-\item{HPOpatient}{}
+\item{HPOpatient}{vector with the patient HPO terms}
 }
 \value{
-
+vector with the gene scores
 }
 \description{
-Title
+Phenotypic score for each gene based on the description of the patient in HPO terms
+}
+\examples{
+HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
+Y<-proteinScore(HPOpatient)
 }

@@ -1,14 +1,24 @@
 
-#' Title
+#' Filtering the patient variants in VCF format annotated by VEP
 #'
-#' @param vcfFile
-#' @param sampleName
-#'
-#' @return
+#' @param sampleName character name with the patient code as is written in the VCF file.
+#' @param filter character name with the desired filter to select the variants. It should be as is written in the FILTER column in the vcf file. 
+#' @param geneQuality numeric value indicating the desired GQ threshold. Default 20.
+#' @param readDepth numeric value indicating the desired DP threshold. Default 10.
+#' @param variants object of class vcfR-class with the patient variants using the read.vcfR function from vcfR package.
+#' @param assembly Genome assembly used. Default assembly human GRCh37.
+#' @param distSplicThreshold integer indicating the maximum distance in base pairs (bp) allowed between intronic variants and the intron-exon boundary. Default 1000.
+#' @param synonymous logical indicating whether to include the synonymous variants. Default TRUE.
+#' 
+#' @return returns an object of class vcfR-class. 
 #' @export
 #'
 #' @examples
-readVCF<-function(sampleName,filter,geneQuality,readDepth,variants,assembly,distSplicThreshold,synonymous)
+#' library(vcfR)
+#' vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
+#' variants <- read.vcfR(vcfFile)
+#' variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
+readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variants,assembly = "assembly37",distSplicThreshold = 1000,synonymous = TRUE)
 {
   library(vcfR)
 
@@ -436,7 +446,7 @@ readVCF<-function(sampleName,filter,geneQuality,readDepth,variants,assembly,dist
 
 
   posKEEP = sort(union(posIMPACT,posKEEP))
-  if(synonymous=="NO"){posKEEP = setdiff(posKEEP,posSYNOM_NO_SPLICE)}
+  if(synonymous==FALSE){posKEEP = setdiff(posKEEP,posSYNOM_NO_SPLICE)}
 
   if(length(posKEEP)>0){variants<-variants[posKEEP,]}
 

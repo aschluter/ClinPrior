@@ -2,16 +2,23 @@
 % Please edit documentation in R/MatrixPropagation.r
 \name{MatrixPropagation}
 \alias{MatrixPropagation}
-\title{Title}
+\title{Propagation of the phenotypic score within of a multilayer network with physical and functional interactions}
 \usage{
 MatrixPropagation(Y, alpha = 0.2)
 }
 \arguments{
-\item{Y}{}
+\item{Y}{vector with the phenotypic score obtained from the proteinScore function.}
+
+\item{alpha}{numeric value [0-1] that ponderates the propagation (alpha) and the previous knowledge (Y) (1-alpha) contribution in the final phenotypic score in the iterative propagation process.}
 }
 \value{
-
+matrix with final phenotypic scores after iterative propagation in a physical protein-protein interaction network and in a functional one.
 }
 \description{
-Title
+Propagation of the phenotypic score within of a multilayer network with physical and functional interactions
+}
+\examples{
+HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
+Y<-proteinScore(HPOpatient)
+ClinPriorGeneScore<-MatrixPropagation(Y,alpha=0.2)
 }

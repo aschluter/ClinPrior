@@ -1,12 +1,15 @@
-#' Title
+#' Propagation of the phenotypic score within of a multilayer network with physical and functional interactions
 #'
-#' @param alpha
-#' @param Y
+#' @param alpha numeric value [0-1] that ponderates the propagation (alpha) and the previous knowledge (Y) (1-alpha) contribution in the final phenotypic score in the iterative propagation process.
+#' @param Y vector with the phenotypic score obtained from the proteinScore function.
 #'
-#' @return
+#' @return matrix with final phenotypic scores after iterative propagation in a physical protein-protein interaction network and in a functional one.
 #' @export
 #'
 #' @examples
+#' HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
+#' Y<-proteinScore(HPOpatient)
+#' ClinPriorGeneScore<-MatrixPropagation(Y,alpha=0.2)
 MatrixPropagation<-function(Y,alpha=0.2)
 {
     library(Matrix)

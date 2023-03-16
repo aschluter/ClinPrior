@@ -2,16 +2,45 @@
 % Please edit documentation in R/readVCF.r
 \name{readVCF}
 \alias{readVCF}
-\title{Title}
+\title{Filtering the patient variants in VCF format annotated by VEP}
 \usage{
-readVCF(vcfFile = vcfFile, sampleName = sampleName)
+readVCF(
+  sampleName,
+  filter = "",
+  geneQuality = 20,
+  readDepth = 10,
+  variants,
+  assembly = "assembly37",
+  distSplicThreshold = 1000,
+  synonymous = TRUE
+)
 }
 \arguments{
-\item{sampleName}{}
+\item{sampleName}{character name with the patient code as is written in the VCF file.}
+
+\item{filter}{character name with the desired filter to select the variants. It should be as is written in the FILTER column in the vcf file.}
+
+\item{geneQuality}{numeric value indicating the desired GQ threshold. Default 20.}
+
+\item{readDepth}{numeric value indicating the desired DP threshold. Default 10.}
+
+\item{variants}{object of class vcfR-class with the patient variants using the read.vcfR function from vcfR package.}
+
+\item{assembly}{Genome assembly used. Default assembly human GRCh37.}
+
+\item{distSplicThreshold}{integer indicating the maximum distance in base pairs (bp) allowed between intronic variants and the intron-exon boundary. Default 1000.}
+
+\item{synonymous}{logical indicating whether to include the synonymous variants. Default TRUE.}
 }
 \value{
-
+returns an object of class vcfR-class.
 }
 \description{
-Title
+Filtering the patient variants in VCF format annotated by VEP
+}
+\examples{
+library(vcfR)
+vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
+variants <- read.vcfR(vcfFile)
+variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
 }

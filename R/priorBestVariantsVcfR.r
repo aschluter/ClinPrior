@@ -1,21 +1,30 @@
 #' Title
 #'
-#' @param variants
-#' @param sampleName
-#' @param filter
-#' @param isCodingVar
-#' @param frequenceAR
-#' @param frequenceAD
-#' @param qualityThreshold
-#' @param GlobalPhenotypicScore
-#' @param assembly
-#' @param processors
+#' @param variants object of class vcfR-class with the patient variants.
+#' @param sampleName character name with the patient code as is written in the VCF file.
+#' @param filter character name with the desired filter to select the variants. It should be as is written in the FILTER column in the vcf file. 
+#' @param isCodingVar logical indicating whether to consider only variants in coding regions. Default TRUE.
+#' @param frequenceAR numerical value indicating the MAF(minor allele frequence) to filter out the variants in autosomal recessive and X-linked inheritance. Default 0.01
+#' @param frequenceAD numerical value indicating the MAF(minor allele frequence) to filter out the variants in autosomal dominant recessive inheritance. Default 0.00005
+#' @param GlobalPhenotypicScore matrix with the phenotypic metrics obtained from the MatrixPropagation function.
+#' @param assembly Genome assembly used. Default assembly human GRCh37.
+#' @param processors Default=1.
 #'
-#' @return
+#' @return data frame with the patient's variants and their associated information classified from most to least likely to be the cause of the patient's phenotype.
 #' @export
 #'
 #' @examples
-priorBestVariantVcfR<-function(variants, sampleName, filter,isCodingVar, frequenceAR,frequenceAD, GlobalPhenotypicScore, assembly="assembly37",processors=4)
+#' library(vcfR)
+#' patientHPOsFile <- paste(system.file("extdata/example", package = "ClinPrior"),"HPOpatient.txt",sep="/")
+#' HPOpatient <- unique(read.csv(patientHPOsFile, header = FALSE, sep = "\t")[, 1])
+#' Y<-proteinScore(HPOpatient)
+#' ClinPriorGeneScore<-MatrixPropagation(Y,alpha=0.2)
+#' 
+#' vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
+#' variants <- read.vcfR(vcfFile)
+#' variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
+#' result = priorBestVariantVcfR(variants = variantsFiltered, sampleName = "HG001",GlobalPhenotypicScore = ClinPriorGeneScore)
+priorBestVariantVcfR<-function(variants, sampleName, filter = "",isCodingVar = TRUE, frequenceAR = 0.01,frequenceAD = 0.00005, GlobalPhenotypicScore, assembly="assembly37",processors=1)
 {
   variants <- variants
   assembly <<- assembly

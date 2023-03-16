@@ -1,17 +1,19 @@
-#' Title
+#' Phenotypic score for each gene based on the description of the patient in HPO terms
 #'
-#' @param HPOpatient
+#' @param HPOpatient vector with the patient HPO terms
 #'
-#' @return
+#' @return vector with the gene scores
 #' @export
 #'
 #' @examples
+#' HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
+#' Y<-proteinScore(HPOpatient)
 proteinScore<-function(HPOpatient)
 {
     library(igraph)
     library(Matrix)
 
-    HPO2genes<-HPO2genes
+    HPO2genes<-HPO2genes 
     treureHPO<-treureHPO
     HPOqueryGene<-HPOqueryGene
     total_unique<-total_unique
