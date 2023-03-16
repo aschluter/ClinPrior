@@ -2,8 +2,11 @@
 
 # ClinPrior
 
-ClinPrior is an interactome-driven prioritization method that predicts the patient's disease gene based on the description of the phenotype in HPO terms. This prioritization is divided into two steps: (1) computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and (2) iterative propagation of this phenotypic score within of a multilayer network with physical and functional interactions.
+ClinPrior is an interactome-driven prioritization method that predicts the patient's disease gene based on the description of the phenotype in HPO terms. This prioritization is divided into two steps: 
+Gene prioritization
+(1) computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and (2) iterative propagation of this phenotypic score within of a multilayer network with physical and functional interactions.
 
+Variant prioritization
 
 ## Installation
 
@@ -15,6 +18,24 @@ install.packages("devtools")
 devtools::install_github("aschluter/ClinPrior")
 library(ClinPrior)
 ```
+
+
+Download the human dataset for assembly GRCh37
+
+``` r
+dir.create(paste(system.file("extdata", package = "ClinPrior"),"/assembly37",sep=""))
+library(piggyback)
+pb_download(repo = "aschluter/ClinPrior",
+            tag = "v1.0-assemblyGRCh37",
+            dest = system.file("extdata/assembly37", package = "ClinPrior"))
+            
+            
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("BSgenome.Hsapiens.UCSC.hg19")            
+```
+
 
 
 
@@ -43,14 +64,14 @@ Y<-proteinScore(HPOpatient)
 
 
 
-## Score propagation
+### Score propagation
 
 Propagation of the phenotypic score in the physical and functional interactomes. 
 
 ``` r
-ClinPriorScore<-MatrixPropagation(Y,alpha=0.2)
+ClinPriorGeneScore<-MatrixPropagation(Y,alpha=0.2)
 
-head(ClinPriorScore)
+head(ClinPriorGeneScore)
 ```
 
 
@@ -64,3 +85,72 @@ head(ClinPriorScore)
 | ASPA |	443 |	0.513182187 |	ASPA |	443 |	0.529834244 |
 
 The final result provides an ordered list of genes that match the patient's HPOs. The PriorFunct and PriorPhys columns report the phenotypic scores after propagation through the functional and physical gene-gene interactions of the network.
+
+
+## Gene prioritization from a HPO-patient file
+
+``` r
+patientHPOsFile <- paste(system.file("extdata/example", package = "ClinPrior"),"HPOpatient.txt",sep="/")
+HPOpatient <- unique(read.csv(patientHPOsFile, header = FALSE, sep = "\t")[, 1])
+Y<-proteinScore(HPOpatient)
+ClinPriorGeneScore<-MatrixPropagation(Y,alpha=0.2)
+
+head(ClinPriorGeneScore)
+``` 
+
+
+| Symbol |	geneID |	PriorFunct |	Symbol	| geneID | PriorPhys |
+| --- | --- | --- | --- | --- | --- |
+| 14465 | KCNQ2 | 3785 | 0.75577235 | KCNQ2 | 3785 | 0.80781806 |
+| 10110 | METTL23 | 124512 | 0.06526948 | METTL23 | 124512 | 0.07970679 |
+| 6323  | KCNQ3 | 3786 | 0.06023326 | KCNQ3 | 3786 | 0.05990822 |
+| 8082  | QDPR  | 5860 | 0.05522760 | QDPR  | 5860 | 0.05611487 |
+| 7696  | SLC1A4  | 6509 | 0.04717662 | SLC1A4  | 6509 | 0.04898418 |
+| 4269  | EDC3  | 80153 | 0.04607937  | EDC3  | 80153 | 0.04620877 |
+
+
+
+
+
+## Variant prioritization
+
+
+Once we have the gene prioritization result (ClinPriorGeneScore in the previous section) that best fits our patient's phenotype, we prioritize the patient variants from a WES or WGS annotated vcf file  with the Ensembl Variant Effect Predictor (VEP) (https://www.ensembl.org/info/docs/tools/vep/index.html). In the example below, we have created a synthetic vcf file with the pathogenic variant KCNQ2:Met546Thr.
+
+
+``` r
+library(vcfR)
+
+vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
+
+variants <- read.vcfR(vcfFile)
+
+
+sampleName = "HG001" # should be same patient code as in the vcf file
+filter = ""
+isCodingVar = TRUE
+frequenceAR = 0.01 # desired MAF in case of recessive inheritance
+frequenceAD = 0.00005 # desired MAF in case of dominant inheritance
+geneQuality = 20
+readDepth = 10
+assembly = "assembly37"
+distSplicThreshold = 1000 # maximum pb distance for intronic variants to exon-intron boundary
+synonymous = "YES" # include or not synonymous variants
+processors = 1
+
+
+variantsFiltered <- readVCF(sampleName,filter,geneQuality,readDepth,variants,assembly,distSplicThreshold,synonymous)
+
+result = priorBestVariantVcfR(variantsFiltered, sampleName, filter,isCodingVar, frequenceAR,frequenceAD, ClinPriorGeneScore, assembly,processors)
+
+head(result)
+```
+
+
+| ClinPriorPosition | CHROM | POS | REF | ALT | genesList | clinvar | knownDisease | Consequence | cDNA | Protein |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+|1 | 20 | 62044929 | A | G | KCNQ2 | pathogenic | AD | missense_variant | ENST00000359125.2:c.1637T>C | ENSP00000352035.2:p.Met546Thr |
+
+
+The KCNQ2 Met546Thr variant is in the first row.
+
