@@ -5,7 +5,8 @@
 ClinPrior is an interactome-driven prioritization method that predicts the patient's disease causal variant  based on the description of the phenotype in HPO terms. This prioritization is divided into two steps: 
 
 - **Gene prioritization:** computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and iterative propagation of this phenotypic score within of a multilayer network with physical and functional interactions. 
-- **Variant prioritization:** filtering and calculation of a variant deleteriousness score.
+- **Variant prioritization:** filtering and calculation of a variant deleteriousness score from WES or WGS sequences in a vcf (variant calling format) file. The last step returns a ranked list with the best variants that can explain the patient's phenotype at the top.
+
 
 
 
@@ -88,7 +89,7 @@ head(ClinPriorGeneScore)
 The final result provides an ordered list of genes that match the patient's HPOs. The PriorFunct and PriorPhys columns report the phenotypic scores after propagation through the functional and physical gene-gene interactions of the network.
 
 
-## Gene prioritization from a HPO-patient file
+## Prioritization of genes from a file with the patient's HPOs
 
 ``` r
 patientHPOsFile <- paste(system.file("extdata/example", package = "ClinPrior"),"HPOpatient.txt",sep="/")
