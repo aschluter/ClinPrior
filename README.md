@@ -7,7 +7,7 @@ ClinPrior is an interactome-driven prioritization method that predicts the patie
 - **Gene prioritization:** computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and iterative propagation of this phenotypic score within of a multilayer network with physical and functional interactions. 
 - **Variant prioritization:** filtering and calculation of a variant deleteriousness score from WES or WGS sequences in a vcf (variant calling format) file. The last step returns a ranked list with the best variants that can explain the patient's phenotype at the top.
 
-If you find this code useful in your research, please consider citing: [ClinPrior publication in Genome Medicine] (https://genomemedicine.biomedcentral.com/articles/10.1186/s13073-023-01214-2)
+If you find this code useful in your research, please consider citing: [ClinPrior publication in Genome Medicine](https://genomemedicine.biomedcentral.com/articles/10.1186/s13073-023-01214-2)
 
 
 ## Installation
