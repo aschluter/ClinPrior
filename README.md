@@ -9,11 +9,13 @@ ClinPrior is an interactome-driven prioritization method that predicts the patie
 
 If you find this code useful in your clinical genomics analysis, please consider citing: [ClinPrior publication in Genome Medicine](https://genomemedicine.biomedcentral.com/articles/10.1186/s13073-023-01214-2)
 
-**ClinPrior pipeline.**
+
+- **ClinPrior pipeline.**
 ![model](img/Figure1.png)
 <p align="justify"> First, the algorithm calculates the phenotypic association metric for each gene in the phenotypic layer based on the patient’s phenotype and known HPO-gene associations. The multilayer network is built from different data resources. The phenotypic layer reports HPO-gene associations, the physical layer reports physical protein‒protein interactions (PPIs) and the functional layer provides coexpression, signalling or metabolic pathway, and protein domain associations. The method propagates the phenotypic metric in adjacent nodes of the network so that higher scores indicate a better phenotypic fit with the patient. Variants resulting from patient genomic sequencing are filtered by frequency, variant impact and mode of inheritance. With this method, new candidate genes not previously associated with disease can also be identified thanks to the propagation of the phenotypic metric through neighbourhood connections.</p>
 
-**Diagnostic yield in a patient real-world cohort.**
+
+- **Diagnostic yield in a patient real-world cohort.**
 ![yield](img/FigureYield.png)
 <p align="justify"> The diagnostic yield in WES and WGS in a real-world cohort with 135 families affected by hereditary spastic paraplegia (HSP) and/or cerebellar ataxia (CA).</p>
 
