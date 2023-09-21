@@ -9,6 +9,7 @@ ClinPrior is an interactome-driven prioritization method that predicts the patie
 
 If you find this code useful in your clinical genomics analysis, please consider citing: [ClinPrior publication in Genome Medicine](https://genomemedicine.biomedcentral.com/articles/10.1186/s13073-023-01214-2)
 
+![model](img/Figure1.png)
 
 ## Installation
 
