@@ -960,9 +960,9 @@ priorBestVariantVcfR<-function(variants, sampleName, filter = "",isCodingVar = T
     #meta = queryMETA(variants,"CSQ")[[3]][4]
     meta = queryMETA(variants,"\\bCSQ\\b")[[1]][4]
     meta = unlist(strsplit(meta, "[|]"))
-    gnomADPOS = match("gnomAD_AF",meta)
-    gnomADgenPOS = match("gnomAD_genomes_AF",meta)
-    gnomADexoPOS = match("gnomAD_exomes_AF",meta)
+    gnomADPOS = match("AF",meta)
+    gnomADgenPOS = match("gnomADg_AF",meta)
+    gnomADexoPOS = match("gnomADe_AF",meta)
 
 
     process <- function(x) {
