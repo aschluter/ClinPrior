@@ -152,7 +152,8 @@ The KCNQ2 Met546Thr variant is in the first row.
 
 
 
-## VEP annoation
+
+## VEP annotation
 
 To annotate a vcf file, you will need the Ensembl Variant Effect Predictor (VEP) (https://www.ensembl.org/info/docs/tools/vep/index.html). This is the command line to annotate your vcf file using the VEP docker or command line tool. You will need to install VEP, CADD and MaxEntScan first.
 
