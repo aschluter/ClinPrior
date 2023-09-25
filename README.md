@@ -150,3 +150,16 @@ head(result)
 
 The KCNQ2 Met546Thr variant is in the first row.
 
+
+
+## VEP annoation
+
+To annotate a vcf file, you will need the Ensembl Variant Effect Predictor (VEP) (https://www.ensembl.org/info/docs/tools/vep/index.html). This is the command line to annotate your vcf file using the VEP docker or command line tool. You will need to install VEP, CADD and MaxEntScan first.
+
+``` r
+vep --af --af_gnomade --af_gnomadg --appris --biotype --buffer_size 500 --cache --ccds --check_existing --database 0 --dir [PATH]/cache --dir_plugins [PATH]/VEP_plugins --distance 5000 --fasta_dir [PATH]/fasta --filter_common --force --fork 4 --hgvs --input_file [PATH]/vcf_test.vcf --mane --output_file [PATH]/output.vcf --pick_allele --polyphen b --pubmed --quiet --regulatory --safe --sift b --stats_text --symbol --transcript_version --tsl --var_synonyms --vcf
+```
+
+Alternatively, you can annotate your VCF using the VEP web interface. You should use the default checkboxes and additionally check the following: CCDS, Protein, HGVS, Variant synonyms, gnomAD (exomes) allele frequencies, gnomAD (genomes) allele frequencies, CADD, MaxEntScan, SpliceAI, Exclude common variants, and in Restrict results select "Show one selected consequence per variant allele".
+
+
