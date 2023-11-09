@@ -146,11 +146,12 @@ head(ClinPriorGeneScore)
 
 Once we have the gene prioritization result (ClinPriorGeneScore in the previous section) that best fits our patient's phenotype, we prioritize the patient variants from a WES or WGS annotated vcf file  with the Ensembl Variant Effect Predictor (VEP) (https://www.ensembl.org/info/docs/tools/vep/index.html). In the example below, we have created a synthetic vcf file with the pathogenic variant KCNQ2:Met546Thr.
 
-for assembly GRCh37
+
 
 ``` r
 library(vcfR)
 
+#example for GRCh37 assembly
 vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
 variants <- read.vcfR(vcfFile)
 variantsFiltered <- readVCF(sampleName = "HG001", variants=variants, assembly= "assembly37")
