@@ -153,8 +153,8 @@ library(vcfR)
 
 vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
 variants <- read.vcfR(vcfFile)
-variantsFiltered <- readVCF(sampleName = "HG001",variants=variants, assembly="assembly37")
-result = priorBestVariantVcfR(variants = variantsFiltered, sampleName = "HG001",GlobalPhenotypicScore = ClinPriorGeneScore,assembly=37)
+variantsFiltered <- readVCF(sampleName = "HG001", variants=variants, assembly= "assembly37")
+result = priorBestVariantVcfR(variants = variantsFiltered, sampleName = "HG001", GlobalPhenotypicScore = ClinPriorGeneScore, assembly= "assembly37")
 
 head(result)
 ```
