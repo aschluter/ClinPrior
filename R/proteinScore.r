@@ -36,7 +36,7 @@ proteinScore<-function(HPOpatient)
     HPOorig_expanded<-cbind(res$names,res$membership)
     HPOorigGroups <<- HPOorig_expanded[match(HPOpatient,HPOorig_expanded[,1]),]
 
-    genes <<- unique(HPO2genes[, 1]) #genes with HPO
+    genes <- unique(HPO2genes[, 1]) #genes with HPO
     posGenes<-match(genes,rownames(HPOadj))
     acumulat<-Matrix(matrix(0,ncol = 1,nrow =length(rownames(HPOadj)[posGenes])))
     acumulatFreq<-acumulat
