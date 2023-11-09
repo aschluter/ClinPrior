@@ -30,6 +30,22 @@ devtools::install_github("aschluter/ClinPrior")
 library(ClinPrior)
 ```
 
+Download the human dataset for assembly GRCh38
+
+``` r
+dir.create(paste(system.file("extdata", package = "ClinPrior"),"/assembly38",sep=""))
+library(piggyback)
+pb_download(repo = "aschluter/ClinPrior",
+            tag = "v2.0-assemblyGRCh38",
+            dest = system.file("extdata/assembly38", package = "ClinPrior"))
+            
+            
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("BSgenome.Hsapiens.UCSC.hg38")            
+```
+
 
 Download the human dataset for assembly GRCh37
 
@@ -37,7 +53,7 @@ Download the human dataset for assembly GRCh37
 dir.create(paste(system.file("extdata", package = "ClinPrior"),"/assembly37",sep=""))
 library(piggyback)
 pb_download(repo = "aschluter/ClinPrior",
-            tag = "v1.0-assemblyGRCh37",
+            tag = "v2.0-assemblyGRCh37",
             dest = system.file("extdata/assembly37", package = "ClinPrior"))
             
             
@@ -130,14 +146,15 @@ head(ClinPriorGeneScore)
 
 Once we have the gene prioritization result (ClinPriorGeneScore in the previous section) that best fits our patient's phenotype, we prioritize the patient variants from a WES or WGS annotated vcf file  with the Ensembl Variant Effect Predictor (VEP) (https://www.ensembl.org/info/docs/tools/vep/index.html). In the example below, we have created a synthetic vcf file with the pathogenic variant KCNQ2:Met546Thr.
 
+for assembly GRCh37
 
 ``` r
 library(vcfR)
 
 vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
 variants <- read.vcfR(vcfFile)
-variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
-result = priorBestVariantVcfR(variants = variantsFiltered, sampleName = "HG001",GlobalPhenotypicScore = ClinPriorGeneScore)
+variantsFiltered <- readVCF(sampleName = "HG001",variants=variants, assembly="assembly37")
+result = priorBestVariantVcfR(variants = variantsFiltered, sampleName = "HG001",GlobalPhenotypicScore = ClinPriorGeneScore,assembly=37)
 
 head(result)
 ```
