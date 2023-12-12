@@ -410,7 +410,11 @@ readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variant
     return(impact)
   }
 
+  ####
+  #remove Chr                       
+  if(variants@fix[1,1]=="chr1"){variants@fix[,1]<-gsub("^chr","",variants@fix[,1])}
 
+                         
   #ObjectVcfR<-read.vcfR(vcfFile)
   gt = variants@gt
   pos = match(sampleName, colnames(gt))
