@@ -24,7 +24,8 @@ MaxentScanClinPriorVcfR<-function(matrixVariants, assembly="assembly37",Threshol
     BSgenome_assembly = BSgenome.Hsapiens.UCSC.hg19}
   if(assembly == "assembly38"){
     library(BSgenome.Hsapiens.UCSC.hg38)
-    BSgenome_assembly = deparse(substitute(BSgenome.Hsapiens.UCSC.hg38))}
+    #BSgenome_assembly = deparse(substitute(BSgenome.Hsapiens.UCSC.hg38))}
+    BSgenome_assembly = BSgenome.Hsapiens.UCSC.hg38}
   library(reticulate)
 
 
