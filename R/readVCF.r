@@ -412,7 +412,7 @@ readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variant
 
   ####
   #remove Chr                       
-  if(variants@fix[1,1]=="chr1"){variants@fix[,1]<-gsub("^chr","",variants@fix[,1])}
+  if(length(grep("^chr",variantsMERGED@fix[,1]))>0){variants@fix[,1]<-gsub("^chr","",variants@fix[,1])}
 
                          
   #ObjectVcfR<-read.vcfR(vcfFile)
