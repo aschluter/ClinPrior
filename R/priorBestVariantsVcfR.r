@@ -368,8 +368,9 @@ priorBestVariantVcfR<-function(variants, sampleName, filter = "",isCodingVar = T
     if(length(posPhaseVariants)>0)
     {
       m<-regexpr("\\d+\\_\\S+\\_[A-Z]{1,300}",gt[selectedVariants,pos][posPhaseVariants],perl = TRUE)
-      phaseVariants[posPhaseVariants] = regmatches(gt[selectedVariants,pos][posPhaseVariants], m)
-
+      if(m[1]>-1){
+        phaseVariants[posPhaseVariants] = regmatches(gt[selectedVariants,pos][posPhaseVariants], m)
+      }
     }
     return(phaseVariants)
   }
@@ -385,11 +386,13 @@ priorBestVariantVcfR<-function(variants, sampleName, filter = "",isCodingVar = T
     if(length(posPhaseVariants)>0)
     {
       m<-regexpr("\\d+\\_\\S+\\_[A-Z]{1,300}",gt[posCmpHETvariants,pos][posPhaseVariants],perl = TRUE)
-      phaseVariants = regmatches(gt[posCmpHETvariants,pos][posPhaseVariants], m)
+      if(m[1]>-1){
+        phaseVariants = regmatches(gt[posCmpHETvariants,pos][posPhaseVariants], m)
 
-      posDups = match(unique(phaseVariants),phaseVariants)
+        posDups = match(unique(phaseVariants),phaseVariants)
 
-      posCmpHETvariants<-sort(union(posCmpHETvariants[posPhaseVariantsNOT],posCmpHETvariants[posPhaseVariants][posDups]))
+        posCmpHETvariants<-sort(union(posCmpHETvariants[posPhaseVariantsNOT],posCmpHETvariants[posPhaseVariants][posDups]))
+        }
     }
     return(posCmpHETvariants)
   }
