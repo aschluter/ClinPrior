@@ -374,9 +374,11 @@ readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variant
     meta = unlist(strsplit(meta, "[|]"))
     ConsequencePOS = match("Consequence",meta)
 
-    options(warn=-1)
-    consequence = do.call(rbind, strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation)), "[|]"))[,ConsequencePOS]
-    options(warn=0)
+    process <- function(x) {
+        strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation[x])), "[|]")[[1]][ConsequencePOS]
+       }
+
+      consequence <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
 
     return(consequence)
   }
@@ -389,11 +391,13 @@ readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variant
     meta = unlist(strsplit(meta, "[|]"))
     cDNAPOS = match("HGVSc",meta)
 
-    options(warn=-1)
-    cDNAannotation = do.call(rbind, strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation)), "[|]"))[,cDNAPOS]
-    options(warn=0)
+    process <- function(x) {
+        strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation[x])), "[|]")[[1]][cDNAPOS]
+       }
 
-    return(cDNAannotation)
+    cDNAannotation <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
+    
+   return(cDNAannotation)
   }
 
   getIMPACT<-function(VariantAnnotation,variants)
@@ -403,9 +407,11 @@ readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variant
     meta = unlist(strsplit(meta, "[|]"))
     impactPOS = match("IMPACT",meta)
 
-    options(warn=-1)
-    impact = do.call(rbind, strsplit(as.character(gsub(".*CSQ=","",variants@fix[,8])), "[|]"))[,impactPOS]
-    options(warn=0)
+    process <- function(x) {
+        strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation[x])), "[|]")[[1]][impactPOS]
+       }
+
+      impact <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
 
     return(impact)
   }
