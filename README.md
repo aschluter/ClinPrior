@@ -182,3 +182,25 @@ vep --af --af_gnomade --af_gnomadg --appris --biotype --buffer_size 500 --cache 
 Alternatively, you can annotate your VCF using the VEP web interface. You should use the default checkboxes and additionally check the following: CCDS, Protein, HGVS, Variant synonyms, gnomAD (exomes) allele frequencies, gnomAD (genomes) allele frequencies, CADD, MaxEntScan, SpliceAI, Exclude common variants, and in Restrict results select "Show one selected consequence per variant allele".
 
 
+
+## Docker
+
+Docker allows running applications in virtualised containers. The ClinPrior Docker image is available from DockerHub: [ClinPrior in DockerHub](https://hub.docker.com/r/aschluterclinprior/clinprior)
+
+After installing [Docker](https://docs.docker.com/get-started/), download the ClinPrior Docker image:
+
+``` r
+docker pull aschluterclinprior/clinprior:latest
+```
+
+To create and run a new container from the clinprior image:
+
+``` r
+sudo docker run -it clinprior bash
+```
+
+To run the clinprior application on HPC clusters download the singularity clinprior image. You will need to install the [singularity package](https://docs.sylabs.io/guides/4.2/user-guide/quick_start.html)
+
+``` r
+singularity pull --arch amd64 library://aschluter/clinprior/clinprior_latest:latest
+```
