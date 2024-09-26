@@ -1114,6 +1114,8 @@ priorBestVariantVcfR<-function(variants, sampleName, filter = "",isCodingVar = T
     if(inheritance == "CmpHET")
     {
       geneUnique<-unique(tableRaw$genesList[duplicated(tableRaw$genesList)])
+      posNULL = match("",geneUnique)
+      if(!is.na(posNULL)){geneUnique = geneUnique[-posNULL]}
 
       process <- function(x) {
         posGU =  grep(paste("\\b",geneUnique[x],"\\b",sep=""),tableRaw$genesList)
