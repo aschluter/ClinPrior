@@ -199,8 +199,8 @@ To create and run a new container from the clinprior image:
 sudo docker run -it clinprior bash
 ```
 
-To run the clinprior application on HPC clusters download the [clinprior singularity image](https://cloud.sylabs.io/library/aschluter/clinprior/clinprior_latest). You will need to install the [singularity package](https://docs.sylabs.io/guides/4.2/user-guide/quick_start.html)
+Create a singularity image to run the ClinPrior application on HPC clusters.. You will need to install the [singularity package](https://docs.sylabs.io/guides/4.2/user-guide/quick_start.html)
 
 ``` r
-singularity pull --arch amd64 library://aschluter/clinprior/clinprior_latest:latest
+singularity pull docker://aschluterclinprior/clinprior
 ```
