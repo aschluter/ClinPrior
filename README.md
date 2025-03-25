@@ -190,7 +190,7 @@ Docker allows running applications in virtualised containers. The ClinPrior Dock
 After installing [Docker](https://docs.docker.com/get-started/), download the ClinPrior Docker image:
 
 ``` r
-docker pull aschluterclinprior/clinprior:latest
+docker pull aschluterclinprior/clinprior2:latest
 ```
 
 To create and run a new container from the clinprior image:
