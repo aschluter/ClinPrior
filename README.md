@@ -185,7 +185,7 @@ Alternatively, you can annotate your VCF using the VEP web interface. You should
 
 ## Docker
 
-Docker allows running applications in virtualised containers. The ClinPrior Docker image is available from DockerHub: [ClinPrior in DockerHub](https://hub.docker.com/r/aschluterclinprior/clinprior)
+Docker allows running applications in virtualised containers. The ClinPrior Docker image is available from DockerHub: [ClinPrior in DockerHub](https://hub.docker.com/r/aschluterclinprior/clinprior2)
 
 After installing [Docker](https://docs.docker.com/get-started/), download the ClinPrior Docker image:
 
