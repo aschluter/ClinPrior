@@ -2,45 +2,67 @@
 % Please edit documentation in R/readVCF.r
 \name{readVCF}
 \alias{readVCF}
-\title{Filtering the patient variants in VCF format annotated by VEP}
+\title{Read and filter a VEP-annotated VCF file}
 \usage{
 readVCF(
-  sampleName,
+  sampleName = "",
   filter = "",
   geneQuality = 20,
   readDepth = 10,
-  variants,
-  assembly = "assembly37",
-  distSplicThreshold = 1000,
+  vcfFile = "",
+  assembly = "assembly38",
+  distSplicThreshold = "full",
   synonymous = TRUE
 )
 }
 \arguments{
-\item{sampleName}{character name with the patient code as is written in the VCF file.}
+\item{sampleName}{Character. Sample identifier as written in the VCF file.}
 
-\item{filter}{character name with the desired filter to select the variants. It should be as is written in the FILTER column in the vcf file.}
+\item{filter}{Character. FILTER field value to select variants (e.g.
+\code{"PASS"}). Use \code{""} to skip this filter. Default \code{""}.}
 
-\item{geneQuality}{numeric value indicating the desired GQ threshold. Default 20.}
+\item{geneQuality}{Numeric. Minimum genotype quality (GQ) threshold.
+Default \code{20}.}
 
-\item{readDepth}{numeric value indicating the desired DP threshold. Default 10.}
+\item{readDepth}{Numeric. Minimum read depth (DP) threshold. Default \code{10}.}
 
-\item{variants}{object of class vcfR-class with the patient variants using the read.vcfR function from vcfR package.}
+\item{vcfFile}{Character. Path to the bgzipped, VEP-annotated VCF file.}
 
-\item{assembly}{Genome assembly used. Default assembly human GRCh37.}
+\item{assembly}{Character. Genome assembly version. Either \code{"assembly38"}
+(default, hg38) or \code{"assembly37"} (hg19).}
 
-\item{distSplicThreshold}{integer indicating the maximum distance in base pairs (bp) allowed between intronic variants and the intron-exon boundary. Default 1000.}
+\item{distSplicThreshold}{Integer or character. Maximum distance (bp) from the
+exon-intron boundary for intronic variants to be retained. Use \code{"full"}
+or \code{Inf} to include all intronic variants regardless of distance.
+Default \code{"full"}.}
 
-\item{synonymous}{logical indicating whether to include the synonymous variants. Default TRUE.}
+\item{synonymous}{Logical. If \code{TRUE} (default), synonymous variants are
+included. If \code{FALSE}, synonymous variants without splicing consequence
+are discarded.}
 }
 \value{
-returns an object of class vcfR-class.
+A \code{data.frame} with the filtered variants, with columns
+  \code{CHROM}, \code{POS}, \code{REF}, \code{ALT}, \code{FILTER},
+  \code{INFO}, \code{GT}, and optionally \code{GQ}, \code{DP}, \code{AD},
+  \code{GT_full} depending on the FORMAT fields present in the VCF.
+  The attribute \code{vcfFile} stores the path to the original VCF file,
+  required by \code{priorBestVariant()}.
 }
 \description{
-Filtering the patient variants in VCF format annotated by VEP
+Reads a VEP-annotated VCF file for a given sample and applies a series of
+filters: genotype quality (GQ), read depth (DP), allelic bias (VAF >= 0.25),
+variant consequence (HIGH, MODERATE, splicing), synonymous variants, and a
+blacklist of recurrent artefacts. Returns a \code{data.frame} ready to be
+passed to \code{priorBestVariant()}.
 }
 \examples{
-library(vcfR)
-vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
-variants <- read.vcfR(vcfFile)
-variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
+\dontrun{
+variants <- readVCF(sampleName = "sample1",
+                    vcfFile    = "sample.vep.vcf.gz",
+                    assembly   = "assembly38",
+                    geneQuality = 20,
+                    readDepth   = 10,
+                    distSplicThreshold = "full",
+                    synonymous  = TRUE)
+}
 }

@@ -1,16 +1,44 @@
 Package: ClinPrior
 Type: Package
-Title: Disease Gene prioritization
-Version: 0.1.0
-Author: Agatha Schluter Martin
-Maintainer: The package maintainer <aschluter@idibell.cat>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Title: Disease Gene Prioritization Using Phenotypic and Variant Evidence
+Version: 4.0.0
+Authors@R: c(
+    person("Agatha",       "Schlüter",           email = "aschluter@idibell.cat", role = c("aut", "cre")),
+    person("Valentina",    "Vélez-Santamaría",                                    role = "aut"),
+    person("Edgard",       "Verdura",                                              role = "aut"),
+    person("Agustí",       "Rodríguez-Palmero",                                   role = "aut"),
+    person("Montserrat",   "Ruiz",                                                 role = "aut"),
+    person("Stéphane",     "Fourcade",                                             role = "aut"),
+    person("Laura",        "Planas-Serra",                                         role = "aut"),
+    person("Nathalie",     "Launay",                                               role = "aut"),
+    person("Cristina",     "Guilera",                                              role = "aut"),
+    person("Juan José",    "Martínez",                                             role = "aut"),
+    person("Carlos",       "Casasnovas",                                           role = "aut"),
+    person("Aurora",       "Pujol",                                                role = "aut"))
+Description: Prioritizes candidate disease genes by integrating variant
+    pathogenicity (VEP consequence, CADD, splicing via MaxEntScan),
+    gene constraint metrics (pLI, pRec, lof_z, mis_z, C1KB), inheritance
+    mode (autosomal dominant, autosomal recessive, compound heterozygous,
+    X-linked), and phenotypic similarity scores propagated across physical
+    and functional gene interaction networks.
+License: GPL (>= 3)
+URL: https://github.com/aschluter/ClinPrior
+BugReports: https://github.com/aschluter/ClinPrior/issues
 Depends: R (>= 3.6.0)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.2.2
+LazyDataCompression: xz
+RoxygenNote: 7.3.1
 Imports:
+    BiocParallel,
+    data.table,
+    stringi,
+    Matrix (>= 1.2-17),
     igraph (>= 1.2.4.1),
-    Matrix (>= 1.2-17)
+    Biostrings,
+    BSgenome,
+    reticulate,
+    seqminer
+Suggests:
+    BSgenome.Hsapiens.UCSC.hg19,
+    BSgenome.Hsapiens.UCSC.hg38

@@ -2,20 +2,46 @@
 % Please edit documentation in R/proteinScore.r
 \name{proteinScore}
 \alias{proteinScore}
-\title{Phenotypic score for each gene based on the description of the patient in HPO terms}
+\title{Compute phenotypic gene scores from patient HPO terms}
 \usage{
-proteinScore(HPOpatient)
+proteinScore(HPOpatient, verbose = TRUE)
 }
 \arguments{
-\item{HPOpatient}{vector with the patient HPO terms}
+\item{HPOpatient}{Character vector with the patient's HPO term identifiers
+(e.g. \code{c("HP:0001250", "HP:0001249")}). Duplicates are removed
+automatically.}
+
+\item{verbose}{Logical. If \code{TRUE} (default), prints diagnostic messages
+about unrecognized, removed, and used HPO terms.}
 }
 \value{
-vector with the gene scores
+A list with four elements:
+  \describe{
+    \item{scores}{Numeric vector of length equal to \code{nrow(total_unique)}
+      with the sigmoid-normalised phenotypic score for each gene. Pass this
+      to \code{MatrixPropagation()} as the \code{Y} argument.}
+    \item{unrecognized_HPOs}{Character vector of HPO terms not found in the
+      internal HPO adjacency matrix (\code{HPOadj}).}
+    \item{removed_HPOs}{Character vector of HPO terms excluded as irrelevant
+      based on the internal \code{treureHPO} filter list.}
+    \item{used_HPOs}{Character vector of HPO terms actually used for scoring,
+      after removing unrecognized and irrelevant terms.}
+  }
 }
 \description{
-Phenotypic score for each gene based on the description of the patient in HPO terms
+Computes a phenotypic prior score for each gene based on the patient's
+clinical description in HPO terms. The function validates and filters the
+input HPO terms, builds a subgraph of phenotypically related terms, groups
+them by cluster, and applies a hypergeometric test to quantify the
+gene-phenotype match. The resulting scores are normalised and transformed
+via a sigmoid function. The output is designed to be passed directly to
+\code{MatrixPropagation()} as \code{result$scores}.
 }
 \examples{
-HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
-Y<-proteinScore(HPOpatient)
+HPOpatient <- c("HP:0004481", "HP:0002376", "HP:0001257", "HP:0001250",
+                "HP:0000238", "HP:0002922", "HP:0000365")
+result <- proteinScore(HPOpatient)
+result$scores           # numeric vector of gene scores
+result$unrecognized_HPOs  # HPO terms not found in the database
+result$used_HPOs          # HPO terms effectively used for scoring
 }

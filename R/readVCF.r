@@ -1,486 +1,216 @@
-
-#' Filtering the patient variants in VCF format annotated by VEP
+#' Read and filter a VEP-annotated VCF file
 #'
-#' @param sampleName character name with the patient code as is written in the VCF file.
-#' @param filter character name with the desired filter to select the variants. It should be as is written in the FILTER column in the vcf file. 
-#' @param geneQuality numeric value indicating the desired GQ threshold. Default 20.
-#' @param readDepth numeric value indicating the desired DP threshold. Default 10.
-#' @param variants object of class vcfR-class with the patient variants using the read.vcfR function from vcfR package.
-#' @param assembly Genome assembly used. Default assembly human GRCh37.
-#' @param distSplicThreshold integer indicating the maximum distance in base pairs (bp) allowed between intronic variants and the intron-exon boundary. Default 1000.
-#' @param synonymous logical indicating whether to include the synonymous variants. Default TRUE.
-#' 
-#' @return returns an object of class vcfR-class. 
+#' @description
+#' Reads a VEP-annotated VCF file for a given sample and applies a series of
+#' filters: genotype quality (GQ), read depth (DP), allelic bias (VAF >= 0.25),
+#' variant consequence (HIGH, MODERATE, splicing), synonymous variants, and a
+#' blacklist of recurrent artefacts. Returns a \code{data.frame} ready to be
+#' passed to \code{priorBestVariant()}.
+#'
+#' @param sampleName Character. Sample identifier as written in the VCF file.
+#' @param filter Character. FILTER field value to select variants (e.g.
+#'   \code{"PASS"}). Use \code{""} to skip this filter. Default \code{""}.
+#' @param geneQuality Numeric. Minimum genotype quality (GQ) threshold.
+#'   Default \code{20}.
+#' @param readDepth Numeric. Minimum read depth (DP) threshold. Default \code{10}.
+#' @param vcfFile Character. Path to the bgzipped, VEP-annotated VCF file.
+#' @param assembly Character. Genome assembly version. Either \code{"assembly38"}
+#'   (default, hg38) or \code{"assembly37"} (hg19).
+#' @param distSplicThreshold Integer or character. Maximum distance (bp) from the
+#'   exon-intron boundary for intronic variants to be retained. Use \code{"full"}
+#'   or \code{Inf} to include all intronic variants regardless of distance.
+#'   Default \code{"full"}.
+#' @param synonymous Logical. If \code{TRUE} (default), synonymous variants are
+#'   included. If \code{FALSE}, synonymous variants without splicing consequence
+#'   are discarded.
+#'
+#' @return A \code{data.frame} with the filtered variants, with columns
+#'   \code{CHROM}, \code{POS}, \code{REF}, \code{ALT}, \code{FILTER},
+#'   \code{INFO}, \code{GT}, and optionally \code{GQ}, \code{DP}, \code{AD},
+#'   \code{GT_full} depending on the FORMAT fields present in the VCF.
+#'   The attribute \code{vcfFile} stores the path to the original VCF file,
+#'   required by \code{priorBestVariant()}.
+#'
 #' @export
+#' @importFrom stringi stri_replace_first_regex stri_split_fixed stri_list2matrix
+#' @importFrom data.table fread
+#' @importFrom utils read.csv
 #'
 #' @examples
-#' library(vcfR)
-#' vcfFile = paste(system.file("extdata/example", package = "ClinPrior"),"HG001_GRCh37_1_22_v4.2.1_benchmark.vep01.KCNQ2Met546Thr.vcf.gz",sep="/")
-#' variants <- read.vcfR(vcfFile)
-#' variantsFiltered <- readVCF(sampleName = "HG001",variants=variants)
-readVCF<-function(sampleName,filter = "",geneQuality = 20,readDepth = 10,variants,assembly = "assembly37",distSplicThreshold = 1000,synonymous = TRUE)
-{
-  library(vcfR)
-
-  dest = system.file(paste("extdata",assembly,sep = "/"), package = "ClinPrior")
-  ClinPriorfiles<-list.files(path = dest, full.names = TRUE)
-  blacklistFile = ClinPriorfiles[grep("blacklist",ClinPriorfiles)]
-  #functions
-
-  getADvariants<-function(variants)
-  {
-    gt = variants@gt
-    pos = match(sampleName, colnames(gt))
-    posADvariants<-grep("0/1|0/2|0/3|1/2|2/3|1/3",gt[,pos])
-    posADvariants<-posADvariants[grep("\\bX\\b",variants@fix[posADvariants,1],invert=TRUE)]
-    return(posADvariants)
+#' \dontrun{
+#' variants <- readVCF(sampleName = "sample1",
+#'                     vcfFile    = "sample.vep.vcf.gz",
+#'                     assembly   = "assembly38",
+#'                     geneQuality = 20,
+#'                     readDepth   = 10,
+#'                     distSplicThreshold = "full",
+#'                     synonymous  = TRUE)
+#' }
+readVCF <- function(sampleName = "", filter="", geneQuality=20, readDepth=10,
+                    vcfFile = "", assembly="assembly38", distSplicThreshold="full", synonymous=TRUE) {
+ 
+  # 1. Load Blacklist
+  dest <- system.file(paste("extdata", assembly, sep="/"), package="ClinPrior")
+  blacklistFile <- list.files(path=dest, full.names=TRUE)[grep("blacklist", list.files(dest))]
+  blacklist <- read.csv(blacklistFile, sep="\t", header=FALSE)
+  ensemble  <- do.call(paste, c(blacklist, sep="-"))
+  
+  blacklist_parts <- strsplit(ensemble, "-")
+  bl_chrompos <- sapply(blacklist_parts, function(x) paste(x[1], x[2], sep="-"))
+  bl_ref      <- sapply(blacklist_parts, function(x) x[3])
+  bl_alt      <- sapply(blacklist_parts, function(x) x[4])
+  
+  # 1. Check which FORMAT fields exist in the header
+  header_fmt <- system(paste("bcftools view -h", vcfFile, "| grep '^##FORMAT'"), intern=TRUE)
+  has_GQ <- any(grepl("ID=GQ", header_fmt))
+  has_DP <- any(grepl("ID=DP[,>\"]", header_fmt))
+  has_AD <- any(grepl("ID=AD", header_fmt))
+  
+  # 2. Build bcftools filter -i logic
+  format_filters <- c()
+  if(has_GQ) format_filters <- c(format_filters, paste0("FORMAT/GQ[0] >= ", geneQuality))
+  if(has_DP) format_filters <- c(format_filters, paste0("FORMAT/DP[0] >= ", readDepth))
+  if(filter != "") format_filters <- c(format_filters, paste0("FILTER=\"", filter, "\""))
+  
+  full_filter <- if(length(format_filters) > 0) paste(format_filters, collapse=" && ") else ""
+  
+  # 3. Build FORMAT fields for query and column names
+  fmt_fields  <- "[%GT"
+  col_names   <- c("CHROM","POS","REF","ALT","FILTER","INFO","GT")
+  if(has_GQ) { fmt_fields <- paste0(fmt_fields, "\t%GQ"); col_names <- c(col_names, "GQ") }
+  if(has_DP) { fmt_fields <- paste0(fmt_fields, "\t%DP"); col_names <- c(col_names, "DP") }
+  if(has_AD) { fmt_fields <- paste0(fmt_fields, "\t%AD"); col_names <- c(col_names, "AD") }
+  # Afegeix al final de fmt_fields, DINS dels brackets, el camp complet
+  # bcftools suporta multiples expressions dins de [ ]
+  # Check which optional FORMAT fields exist before including in GT_full
+  has_PGT <- any(grepl("ID=PGT", header_fmt))
+  has_PID <- any(grepl("ID=PID", header_fmt))
+  has_PL  <- any(grepl("ID=PL",  header_fmt))
+  has_PS  <- any(grepl("ID=PS",  header_fmt))
+  
+  gt_full_parts <- c("%GT")
+  if(has_GQ)  gt_full_parts <- c(gt_full_parts, "%GQ")
+  if(has_DP)  gt_full_parts <- c(gt_full_parts, "%DP")
+  if(has_AD)  gt_full_parts <- c(gt_full_parts, "%AD")
+  if(has_PGT) gt_full_parts <- c(gt_full_parts, "%PGT")
+  if(has_PID) gt_full_parts <- c(gt_full_parts, "%PID")
+  if(has_PL)  gt_full_parts <- c(gt_full_parts, "%PL")
+  if(has_PS)  gt_full_parts <- c(gt_full_parts, "%PS")
+  
+  fmt_fields <- paste0(fmt_fields, "\t", paste(gt_full_parts, collapse=":"), "]")
+  col_names  <- c(col_names, "GT_full")
+  
+  # 4. Create temporary file and run system command
+  tmpTxt <- tempfile(fileext=".txt")
+  
+  # Build command using bcftools filter -i for all filters
+  cmd <- paste0("bcftools view -s ", sampleName, " ", vcfFile,
+                if(full_filter != "") paste0(" | bcftools filter -i '", full_filter, "'") else "",
+                " | bcftools norm -m -any",
+                " | bcftools view -e 'ALT=\"*\"'",
+                " | bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%FILTER\t%INFO\t", fmt_fields, "\n'",
+                " > ", tmpTxt)
+  
+  system(cmd)
+  
+  # 5. Read data into R and delete temporary file
+  df <- fread(tmpTxt, 
+              sep="\t",
+              header=FALSE, 
+              col.names=col_names, 
+              quote="", 
+              fill=TRUE,
+              colClasses = "character")  # force all columns as character
+  
+  df <- as.data.frame(df)
+  unlink(tmpTxt)
+  
+  # Convert numeric columns
+  df$POS <- as.integer(df$POS)
+  if(has_GQ) df$GQ <- as.numeric(df$GQ)
+  if(has_DP) df$DP <- as.numeric(df$DP)
+  
+  # Basic cleanup
+  df <- df[df$GT != "0/0" & df$GT != "0|0", ]
+  df$CHROM <- gsub("^chr", "", df$CHROM)
+  
+  # 6. Parse CSQ (VEP)
+  hdr_csq  <- system(paste0("bcftools view -h ", vcfFile, " | grep 'ID=CSQ'"), intern=TRUE)
+  meta     <- strsplit(gsub('.*Format: ([^"]+)".*', "\\1", hdr_csq), "[|]")[[1]]
+  
+  ConsequencePOS <- match("Consequence", meta)
+  ImpactPOS      <- match("IMPACT",      meta)
+  cDNAPOS        <- match("HGVSc",       meta)
+  
+  csq_raw   <- stri_replace_first_regex(df$INFO, ".*CSQ=", "")
+  csq_first <- stri_replace_first_regex(csq_raw, ",.*", "")
+  csq_split <- stri_split_fixed(csq_first, "|")
+  
+  consequence <- stri_list2matrix(lapply(csq_split, `[`, ConsequencePOS), byrow=TRUE)[,1]
+  impact      <- stri_list2matrix(lapply(csq_split, `[`, ImpactPOS), byrow=TRUE)[,1]
+  cDNA        <- stri_list2matrix(lapply(csq_split, `[`, cDNAPOS), byrow=TRUE)[,1]
+  
+  # 7. Splicing and Impact filters
+  # Resolve distSplicThreshold: "full" or Inf means no distance limit
+  distSplicThreshold <- if(identical(distSplicThreshold, "full") || 
+                           (is.numeric(distSplicThreshold) && is.infinite(distSplicThreshold))) {
+    Inf
+  } else {
+    as.numeric(distSplicThreshold)
   }
-
-  filterVariantsVcfR<-function(variants,filter)
-  {
-    if(filter != "")
-    {
-      filterColumn<-variants@fix[,7]
-      pos = grep(filter,filterColumn)
-      if(length(pos)>0){variants<-variants[pos,]}
-    }
-    return(variants)
+  
+  hgvsc_only <- gsub(".*:(c\\.[^|]+)", "\\1", cDNA)
+  m          <- regexpr("[+-][0-9]+", hgvsc_only, perl=TRUE)
+  dist_match <- regmatches(hgvsc_only, m, invert=FALSE)
+  dist_num   <- rep(NA_real_, length(cDNA))
+  dist_num[m > 0] <- as.numeric(dist_match)
+  
+  pos_intron  <- grepl("intron", consequence)
+  keep_intron <- if(is.infinite(distSplicThreshold)) {
+    pos_intron  # include all intronic variants regardless of distance
+  } else {
+    pos_intron & !is.na(dist_num) & abs(dist_num) <= distSplicThreshold
   }
-
-  deleteGnomadBlacklistVariants<-function(variants,ensemble)
-  {
-    gt = variants@gt
-    pos = match(sampleName, colnames(gt))
-    options(warn=-1)
-    genotype = do.call(rbind, strsplit(as.character(gt[,pos]), ":"))[,1]
-    options(warn=0)
-
-    m<-regexpr("(\\d{1,2}\\/)|(\\d{1,2}\\|)",genotype,perl = TRUE)
-    genotype1<-regmatches(genotype, m)
-    genotype1<-gsub("\\||\\/", "",genotype1,perl=TRUE)
-
-    m<-regexpr("(\\/\\d{1,2})|(\\|\\d{1,2})",genotype,perl = TRUE)
-    genotype2<-regmatches(genotype, m)
-    genotype2<-gsub("\\||\\/", "",genotype2,perl=TRUE)
-
-
-    alternative = getFIX(variants)[,5]
-
-    m<-regexpr("(\\w+\\,|\\w+)",alternative,perl = TRUE)
-    allel1<-regmatches(alternative, m)
-    allel1<-gsub("\\,", "",allel1,perl=TRUE)
-
-    m<-regexpr("(\\,\\w+)",alternative,perl = TRUE)
-    posAllel2<-grep("(\\,\\w+)",alternative,perl = TRUE)
-    allel2<-regmatches(alternative, m)
-    allel2<-gsub("\\,", "",allel2,perl=TRUE)
-
-    #shortVariant = do.call(paste, c(longVariant, sep="-"))
-    #longVariant = gsub(" ", "", longVariant, fixed = TRUE)
-
-
-    #GENOTYPE1
-    alt<-matrix(0,ncol = 1, nrow = dim(variants)[1])
-    #1/0
-    if(length(grep("1",genotype1))>0){alt[grep("1",genotype1)]<-allel1[grep("1",genotype1)]}
-    #2/0
-    if(length(grep("2",genotype1))>0){alt[posAllel2[grep("2",genotype1[posAllel2])]]<-allel2[grep("2",genotype1[posAllel2])]}
-    #3/0
-    if(length(grep("3",genotype1))>0){alt[posAllel2[grep("3",genotype1[posAllel2])]]<-allel2[grep("3",genotype1[posAllel2])]}
-    if(length(grep("4",genotype1))>0){alt[posAllel2[grep("4",genotype1[posAllel2])]]<-allel2[grep("4",genotype1[posAllel2])]}
-    if(length(grep("5",genotype1))>0){alt[posAllel2[grep("5",genotype1[posAllel2])]]<-allel2[grep("5",genotype1[posAllel2])]}
-    if(length(grep("6",genotype1))>0){alt[posAllel2[grep("6",genotype1[posAllel2])]]<-allel2[grep("6",genotype1[posAllel2])]}
-    if(length(grep("7",genotype1))>0){alt[posAllel2[grep("7",genotype1[posAllel2])]]<-allel2[grep("7",genotype1[posAllel2])]}
-    if(length(grep("8",genotype1))>0){alt[posAllel2[grep("8",genotype1[posAllel2])]]<-allel2[grep("8",genotype1[posAllel2])]}
-    if(length(grep("9",genotype1))>0){alt[posAllel2[grep("9",genotype1[posAllel2])]]<-allel2[grep("9",genotype1[posAllel2])]}
-    if(length(grep("10",genotype1))>0){alt[posAllel2[grep("10",genotype1[posAllel2])]]<-allel2[grep("10",genotype1[posAllel2])]}
-
-
-    longVariant = cbind.data.frame(variants@fix[,c(1,2,4)],alt)
-    longVariant = do.call(paste, c(longVariant, sep="-"))
-    longVariant = gsub(" ", "", longVariant, fixed = TRUE)
-    deleteVariants1<-match(ensemble,longVariant)[!is.na(match(ensemble,longVariant))]
-
-
-
-    #GENOTYPE2
-    alt<-matrix(0,ncol = 1, nrow = dim(variants)[1])
-    #0/1
-    if(length(grep("1",genotype2))>0){alt[grep("1",genotype2)]<-allel1[grep("1",genotype2)]}
-    #0/2
-    if(length(grep("2",genotype2))>0){alt[posAllel2[grep("2",genotype2[posAllel2])]]<-allel2[grep("2",genotype2[posAllel2])]}
-    #0/3
-    if(length(grep("3",genotype2))>0){alt[posAllel2[grep("3",genotype2[posAllel2])]]<-allel2[grep("3",genotype2[posAllel2])]}
-    if(length(grep("4",genotype2))>0){alt[posAllel2[grep("4",genotype2[posAllel2])]]<-allel2[grep("4",genotype2[posAllel2])]}
-    if(length(grep("5",genotype2))>0){alt[posAllel2[grep("5",genotype2[posAllel2])]]<-allel2[grep("5",genotype2[posAllel2])]}
-    if(length(grep("6",genotype2))>0){alt[posAllel2[grep("6",genotype2[posAllel2])]]<-allel2[grep("6",genotype2[posAllel2])]}
-    if(length(grep("7",genotype2))>0){alt[posAllel2[grep("7",genotype2[posAllel2])]]<-allel2[grep("7",genotype2[posAllel2])]}
-    if(length(grep("8",genotype2))>0){alt[posAllel2[grep("8",genotype2[posAllel2])]]<-allel2[grep("8",genotype2[posAllel2])]}
-    if(length(grep("9",genotype2))>0){alt[posAllel2[grep("9",genotype2[posAllel2])]]<-allel2[grep("9",genotype2[posAllel2])]}
-    if(length(grep("10",genotype2))>0){alt[posAllel2[grep("10",genotype2[posAllel2])]]<-allel2[grep("10",genotype2[posAllel2])]}
-
-
-    longVariant = cbind.data.frame(variants@fix[,c(1,2,4)],alt)
-    longVariant = do.call(paste, c(longVariant, sep="-"))
-    longVariant = gsub(" ", "", longVariant, fixed = TRUE)
-    deleteVariants2<-match(ensemble,longVariant)[!is.na(match(ensemble,longVariant))]
-
-    deleteVariants<-union(deleteVariants1,deleteVariants2)
-
-
-    return(deleteVariants)
+  
+  keep <- grepl("HIGH|MODERATE|LOW", impact) | keep_intron
+  if(!synonymous) {
+    synom_no_splice <- grepl("synonymous", consequence) & !grepl("splice", consequence)
+    keep <- keep & !synom_no_splice
   }
-
-  getAlt_forMutliAllelic<-function(variants)
-  {
-
-    gt = variants@gt
-    pos = match(sampleName, colnames(gt))
-    options(warn=-1)
-    genotype = do.call(rbind, strsplit(as.character(gt[,pos]), ":"))[,1]
-    options(warn=0)
-
-    m<-regexpr("(\\d{1,2}\\/)|(\\d{1,2}\\|)",genotype,perl = TRUE)
-    genotype1<-regmatches(genotype, m)
-    genotype1<-gsub("\\||\\/", "",genotype1,perl=TRUE)
-
-    m<-regexpr("(\\/\\d{1,2})|(\\|\\d{1,2})",genotype,perl = TRUE)
-    genotype2<-regmatches(genotype, m)
-    genotype2<-gsub("\\||\\/", "",genotype2,perl=TRUE)
-
-
-    alternative = getFIX(variants)[,5]
-
-    m<-regexpr("(\\w+\\,|\\w+)",alternative,perl = TRUE)
-    allel1<-regmatches(alternative, m)
-    allel1<-gsub("\\,", "",allel1,perl=TRUE)
-
-    m<-regexpr("(\\,\\w+)",alternative,perl = TRUE)
-    posAllel2<-grep("(\\,\\w+)",alternative,perl = TRUE)
-    allel2<-regmatches(alternative, m)
-    allel2<-gsub("\\,", "",allel2,perl=TRUE)
-
-    #GENOTYPE2
-    alt<-matrix(0,ncol = 1, nrow = dim(variants)[1])
-    #0/1
-    if(length(grep("1",genotype2))>0){alt[grep("1",genotype2)]<-allel1[grep("1",genotype2)]}
-    #0/2
-    if(length(grep("2",genotype2))>0){alt[posAllel2[grep("2",genotype2[posAllel2])]]<-allel2[grep("2",genotype2[posAllel2])]}
-    #0/3
-    if(length(grep("3",genotype2))>0){alt[posAllel2[grep("3",genotype2[posAllel2])]]<-allel2[grep("3",genotype2[posAllel2])]}
-    if(length(grep("4",genotype2))>0){alt[posAllel2[grep("4",genotype2[posAllel2])]]<-allel2[grep("4",genotype2[posAllel2])]}
-    if(length(grep("5",genotype2))>0){alt[posAllel2[grep("5",genotype2[posAllel2])]]<-allel2[grep("5",genotype2[posAllel2])]}
-    if(length(grep("6",genotype2))>0){alt[posAllel2[grep("6",genotype2[posAllel2])]]<-allel2[grep("6",genotype2[posAllel2])]}
-    if(length(grep("7",genotype2))>0){alt[posAllel2[grep("7",genotype2[posAllel2])]]<-allel2[grep("7",genotype2[posAllel2])]}
-    if(length(grep("8",genotype2))>0){alt[posAllel2[grep("8",genotype2[posAllel2])]]<-allel2[grep("8",genotype2[posAllel2])]}
-    if(length(grep("9",genotype2))>0){alt[posAllel2[grep("9",genotype2[posAllel2])]]<-allel2[grep("9",genotype2[posAllel2])]}
-    if(length(grep("10",genotype2))>0){alt[posAllel2[grep("10",genotype2[posAllel2])]]<-allel2[grep("10",genotype2[posAllel2])]}
-
-
-    #GENOTYPE1
-    #alt<-matrix(0,ncol = 1, nrow = dim(variants)[1])
-    #1/0
-    if(length(grep("1",genotype1))>0){alt[grep("1",genotype1)]<-allel1[grep("1",genotype1)]}
-    #2/0
-    if(length(grep("2",genotype1))>0){alt[posAllel2[grep("2",genotype1[posAllel2])]]<-allel2[grep("2",genotype1[posAllel2])]}
-    #3/0
-    if(length(grep("3",genotype1))>0){alt[posAllel2[grep("3",genotype1[posAllel2])]]<-allel2[grep("3",genotype1[posAllel2])]}
-    if(length(grep("4",genotype1))>0){alt[posAllel2[grep("4",genotype1[posAllel2])]]<-allel2[grep("4",genotype1[posAllel2])]}
-    if(length(grep("5",genotype1))>0){alt[posAllel2[grep("5",genotype1[posAllel2])]]<-allel2[grep("5",genotype1[posAllel2])]}
-    if(length(grep("6",genotype1))>0){alt[posAllel2[grep("6",genotype1[posAllel2])]]<-allel2[grep("6",genotype1[posAllel2])]}
-    if(length(grep("7",genotype1))>0){alt[posAllel2[grep("7",genotype1[posAllel2])]]<-allel2[grep("7",genotype1[posAllel2])]}
-    if(length(grep("8",genotype1))>0){alt[posAllel2[grep("8",genotype1[posAllel2])]]<-allel2[grep("8",genotype1[posAllel2])]}
-    if(length(grep("9",genotype1))>0){alt[posAllel2[grep("9",genotype1[posAllel2])]]<-allel2[grep("9",genotype1[posAllel2])]}
-    if(length(grep("10",genotype1))>0){alt[posAllel2[grep("10",genotype1[posAllel2])]]<-allel2[grep("10",genotype1[posAllel2])]}
-
-    variants@fix[,5]<-alt
-
-    return(variants)
-  }
-
-  deleteIndelVariantsSamePos<-function(variants)
-  {
-    #delete indel variants in same position
-
-    shortVariant = getFIX(variants)[,c(1,2)]
-    shortVariant = apply(shortVariant[,1:2],1,function(x) paste(x,collapse="-"))
-
-    m<-regexpr("(^\\S+\\-\\d+)",ensemble,perl = TRUE)
-    shortEnsemble<-regmatches(ensemble, m)
-    m<-regexpr("(\\w+\\-\\w+$)",ensemble,perl = TRUE)
-    regexEnsembl<-regmatches(ensemble, m)
-    refEnsembl = gsub("(\\w+)(-)(\\w+$)", "\\1", regexEnsembl, perl = TRUE)
-    AltEnsembl = gsub("(\\w+)(-)(\\w+$)", "\\3", regexEnsembl, perl = TRUE)
-
-
-    pos1<-match(shortEnsemble,shortVariant)[!is.na(match(shortEnsemble,shortVariant))]
-    posInShortEnsembl<-c(1:length(shortEnsemble))[!is.na(match(shortEnsemble,shortVariant[pos1]))]
-
-    # ref ==, Alt !=
-    posRef = c(1:length(posInShortEnsembl))[nchar(variants@fix[pos1,4]) == nchar(refEnsembl[posInShortEnsembl])]
-    posAlt = c(1:length(posInShortEnsembl))[nchar(variants@fix[pos1,5]) != nchar(AltEnsembl[posInShortEnsembl])]
-    posIntersect1  = intersect(posRef,posAlt)
-    # ref !=, Alt ==
-    posRef = c(1:length(posInShortEnsembl))[nchar(variants@fix[pos1,4]) != nchar(refEnsembl[posInShortEnsembl])]
-    posAlt = c(1:length(posInShortEnsembl))[nchar(variants@fix[pos1,5]) == nchar(AltEnsembl[posInShortEnsembl])]
-    posIntersect2  = intersect(posRef,posAlt)
-
-    # ref !=, Alt !=
-    posRef = c(1:length(posInShortEnsembl))[nchar(variants@fix[pos1,4]) != nchar(refEnsembl[posInShortEnsembl])]
-    posAlt = c(1:length(posInShortEnsembl))[nchar(variants@fix[pos1,5]) != nchar(AltEnsembl[posInShortEnsembl])]
-    posIntersect3  = intersect(posRef,posAlt)
-
-
-    deleteVariants<-pos1[unique(c(posIntersect1,posIntersect2,posIntersect3))]
-
-    return(deleteVariants)
-  }
-
-  qualVariants<-function(geneQuality,readDepth,variants)
-  {
-
-    gt = variants@gt
-    pos = match(sampleName, colnames(gt))
-
-    #GQ
-    posGQDiscard = integer(0)
-
-    lGQ = length(grep("GQ",as.character(variants@gt[,1]),perl = TRUE))
-
-    if(length(lGQ)>0)
-    {
-
-      process <- function(x) {
-        posGQ <-  match("GQ",strsplit(as.character(variants@gt[x,1]), ":")[[1]])
-        GQ <- strsplit(as.character(variants@gt[x,pos]), ":")[[1]][posGQ]
-        GQ
-      }
-
-      GQ <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
-
-      posGQDiscard1<-  c(1:length(GQ))[!is.na(as.numeric(GQ)<=geneQuality)]
-      posGQDiscard2<-  c(1:length(posGQDiscard1))[as.numeric(GQ)[posGQDiscard1]<as.numeric(geneQuality)]
-      posGQDiscard<- c(1:length(GQ))[posGQDiscard1][posGQDiscard2]
-    }
-
-
-    #AD
-    posDeepDiscard = integer(0)
-
-    lDP = length(grep("DP",as.character(variants@gt[,1]),perl = TRUE))
-
-    if(length(lDP)>0)
-    {
-
-      process <- function(x) {
-        posDP <-  grep("^DP$|^DPI$",perl=TRUE,strsplit(as.character(variants@gt[x,1]), ":")[[1]])[1]
-        deep <- strsplit(as.character(variants@gt[x,pos]), ":")[[1]][posDP]
-        deep
-      }
-
-
-      deep <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
-
-        posDPDiscard1<-  c(1:length(deep))[!is.na(as.numeric(deep)<=readDepth)]
-        posDPDiscard2<-  c(1:length(posDPDiscard1))[as.numeric(deep)[posDPDiscard1]<as.numeric(readDepth)]
-        posDeepDiscard<- c(1:length(deep))[posDPDiscard1][posDPDiscard2]
-     }
-
-
-    #Discard bias <25% and >75% in HET variants
-
-    variants2<- variants
-    posVariants2 = c(1:as.numeric(dim(variants)[1]))
-
-    posDiscard<-unique(c(posGQDiscard,posDeepDiscard))
-
-    if(length(posDiscard)>0)
-    {
-
-      posVariants2 = c(1:as.numeric(dim(variants)[1]))[-posDiscard]
-      variants2<- variants[-posDiscard,]
-    }
-
-    posBiasDiscard = integer(0)
-
-    posADvariants<-getADvariants(variants2)
-
-    #GT
-    lGT = length(grep("GT",as.character(variants2@gt[,1]),perl = TRUE))
-
-    if(length(lGT)>0)
-    {
-
-      process <- function(x) {
-        posGT <-  match("GT",strsplit(as.character(variants2@gt[x,1]), ":")[[1]])
-        GT <- strsplit(as.character(variants2@gt[x,pos]), ":")[[1]][posGT]
-        genotype1 = strsplit(GT,"/")[[1]][1]
-        genotype2 = strsplit(GT,"/")[[1]][2]
-        list(genotype1,genotype2)
-      }
-
-      genotype <-do.call(rbind, lapply(c(1:dim(variants2)[1]), process))
-
-
-
-    #AD
-    lAD = length(grep("AD",as.character(variants2@gt[,1]),perl = TRUE))
-
-    if(length(lAD)>0)
-    {
-
-     HETvariants<-variants2@gt[posADvariants,]
-          genotype1<- unlist(genotype[posADvariants,1])
-          genotype2<- unlist(genotype[posADvariants,2])
-
-         process <- function(x) {
-            numG1 = as.numeric(genotype1[x])
-            numG2 = as.numeric(genotype2[x])
-
-            posAD <-  match("AD",strsplit(as.character(HETvariants[x,1]), ":")[[1]])
-            deepAD <- strsplit(as.character(HETvariants[x,pos]), ":")[[1]][posAD]
-            allel1 = as.numeric(strsplit(deepAD,",")[[1]][(numG1+1)])
-            allel2 = as.numeric(strsplit(deepAD,",")[[1]][(numG2+1)])
-           freqBias = allel1/(allel1+allel2)
-          }
-
-          freqBias <-do.call(rbind, lapply(c(1:length(posADvariants)), process))
-
-          posnoNA<-c(1:length(freqBias))[!is.na(freqBias)]
-          freqBias<-freqBias[posnoNA]
-          posDiscard2<-union(c(1:length(freqBias))[freqBias>0.75],c(1:length(freqBias))[freqBias<0.25])
-          posBiasDiscard<-c(1:length(deep))[posADvariants][posnoNA][posDiscard2]
-          posBiasDiscard<- posVariants2[posBiasDiscard]
-      }
-
-    }
-
-    posDiscard<-unique(c(posGQDiscard,posDeepDiscard,posBiasDiscard))
-    #posDiscard<-unique(c(posGQDiscard,posDeepDiscard,posBiasDiscard1,posBiasDiscard2,posBiasDiscard3))
-
-    #if(qualityThreshold>0)
-    #{
-    #  pos100<-c(1:length(variants[,6]))[as.numeric(gsub(",",".",variants[,6]))<qualityThreshold]
-    #  posDiscard<-union(posDiscard,pos100[!is.na(pos100)])
-    #}
-
-    return(posDiscard)
-  }
-
-  getConsequence<-function(VariantAnnotation,variants)
-  {
-    #meta = queryMETA(variants,"CSQ")[[3]][4]
-    meta = queryMETA(variants,"\\bCSQ\\b")[[1]][4]
-    meta = unlist(strsplit(meta, "[|]"))
-    ConsequencePOS = match("Consequence",meta)
-
-    process <- function(x) {
-        strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation[x])), "[|]")[[1]][ConsequencePOS]
-       }
-
-      consequence <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
-
-    return(consequence)
-  }
-
-  getcDNA<-function(VariantAnnotation,variants)
-  {
-
-    #meta = queryMETA(variants,"CSQ")[[3]][4]
-    meta = queryMETA(variants,"\\bCSQ\\b")[[1]][4]
-    meta = unlist(strsplit(meta, "[|]"))
-    cDNAPOS = match("HGVSc",meta)
-
-    process <- function(x) {
-        strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation[x])), "[|]")[[1]][cDNAPOS]
-       }
-
-    cDNAannotation <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
+  df <- df[keep, ]
+  
+  # 8. Robust allelic bias filter
+  if(has_AD && nrow(df) > 0) {
+    ad_split <- strsplit(df$AD, ",")
     
-   return(cDNAannotation)
+    vaf <- sapply(ad_split, function(a) {
+      a <- as.numeric(a)
+      if(length(a) < 2) return(NA)
+      total <- sum(a)
+      if(total == 0) return(NA)
+      return(a[2] / total)
+    })
+    
+    bias_fail <- !is.na(vaf) & (vaf < 0.25)
+    df <- df[!bias_fail, ]
   }
-
-  getIMPACT<-function(VariantAnnotation,variants)
-  {
-
-    meta = queryMETA(variants,"\\bCSQ\\b")[[1]][4]
-    meta = unlist(strsplit(meta, "[|]"))
-    impactPOS = match("IMPACT",meta)
-
-    process <- function(x) {
-        strsplit(as.character(gsub(".*CSQ=","",VariantAnnotation[x])), "[|]")[[1]][impactPOS]
-       }
-
-      impact <-do.call(rbind, lapply(c(1:dim(variants)[1]), process))
-
-    return(impact)
+  
+  # 9. Blacklist filter
+  if(nrow(df) > 0) {
+    variant_id <- paste(df$CHROM, df$POS, df$REF, df$ALT, sep="-")
+    df <- df[!variant_id %in% ensemble, ]
+    
+    var_chrompos <- paste(df$CHROM, df$POS, sep="-")
+    pos_match    <- match(var_chrompos, bl_chrompos)
+    has_match    <- !is.na(pos_match)
+    
+    ref_len_diff   <- nchar(df$REF[has_match]) != nchar(bl_ref[pos_match[has_match]])
+    alt_len_diff   <- nchar(df$ALT[has_match]) != nchar(bl_alt[pos_match[has_match]])
+    
+    indel_mismatch <- has_match
+    indel_mismatch[has_match] <- ref_len_diff | alt_len_diff
+    df <- df[!indel_mismatch, ]
   }
-
-  ####
-  #remove Chr                       
-  if(length(grep("^chr",variants@fix[,1]))>0){variants@fix[,1]<-gsub("^chr","",variants@fix[,1])}
-
-                         
-  #ObjectVcfR<-read.vcfR(vcfFile)
-  gt = variants@gt
-  pos = match(sampleName, colnames(gt))
-  gtPOS = grep("0/0",gt[,pos],invert=TRUE)
-  variants = variants[gtPOS,]
-
-
-
-  consequence = getConsequence(variants@fix[,8],variants)
-  posCONSE<-grep("intron",consequence)
-
-
-  cDNA = getcDNA(variants@fix[,8],variants)
-  m <- regexpr("\\+[\\d+]{1,8}|\\-[\\d+]{1,8}", cDNA,perl=TRUE)
-  posMatch <- grep("\\+[\\d+]{1,8}|\\-[\\d+]{1,8}", cDNA,perl=TRUE)
-  match<-regmatches(cDNA, m)
-  distSplic<-as.numeric(gsub("\\+|\\-", "",match,perl=TRUE))
-
-  posSplicThreshold<-c(1:length(distSplic))[distSplic<=distSplicThreshold]
-  pos30<-c(1:length(cDNA))[posMatch][posSplicThreshold]
-  posKEEP = intersect(pos30,posCONSE)
-
-
-  impact = getIMPACT(variants@fix[,8],variants)
-  posIMPACT<-grep("HIGH|MODERATE|LOW",impact)
-
-  posSYNOM<-grep("synonymous",consequence)
-  posSPLICE<-grep("splice",consequence)
-
-  posSYNOM_SPLICE = intersect(posSYNOM,posSPLICE)
-
-  posSYNOM_NO_SPLICE = posSYNOM[is.na(match(posSYNOM,posSYNOM_SPLICE))]
-
-
-  posKEEP = sort(union(posIMPACT,posKEEP))
-  if(synonymous==FALSE){posKEEP = setdiff(posKEEP,posSYNOM_NO_SPLICE)}
-
-  if(length(posKEEP)>0){variants<-variants[posKEEP,]}
-
-
-
-  posDISCARD<-qualVariants(geneQuality,readDepth,variants)
-  if(length(posDISCARD)>0){variants<-variants[-posDISCARD,]}
-
-
-  variants<-filterVariantsVcfR(variants,filter)
-
-  #delete ensemble exome,genome Gnomad and blacklist variants
-  #Blacklist
-  blacklist = read.csv(blacklistFile, sep="\t", header=FALSE)
-  ensemble = do.call(paste, c(blacklist, sep="-"))
-  deleteVariants<-deleteGnomadBlacklistVariants(variants,ensemble)
-  if(length(deleteVariants)>0){variants<-variants[-deleteVariants,]}
-
-  variants<-getAlt_forMutliAllelic(variants)
-
-  #delete indels in same genomic position
-  deleteVariants<-deleteIndelVariantsSamePos(variants)
-  if(length(deleteVariants)>0){variants<-variants[-deleteVariants,]}
-
-
-  return(variants)
+  attr(df, "vcfFile") <- vcfFile
+  return(df)
 }

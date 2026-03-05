@@ -2,23 +2,55 @@
 % Please edit documentation in R/MatrixPropagation.r
 \name{MatrixPropagation}
 \alias{MatrixPropagation}
-\title{Propagation of the phenotypic score within of a multilayer network with physical and functional interactions}
+\title{Propagation of the phenotypic score within a multilayer network with
+physical and functional interactions}
 \usage{
-MatrixPropagation(Y, alpha = 0.2)
+MatrixPropagation(
+  Y,
+  alpha = 0.2,
+  max_iter = 10000,
+  window = 20,
+  verbose = TRUE
+)
 }
 \arguments{
-\item{Y}{vector with the phenotypic score obtained from the proteinScore function.}
+\item{Y}{Numeric vector with the phenotypic prior score for each gene, as
+returned by \code{proteinScore()$scores}.}
 
-\item{alpha}{numeric value [0-1] that ponderates the propagation (alpha) and the previous knowledge (Y) (1-alpha) contribution in the final phenotypic score in the iterative propagation process.}
+\item{alpha}{Numeric [0, 1]. Propagation weight: balances network diffusion
+(\code{alpha}) vs. retention of the original prior score (\code{1 - alpha})
+at each iteration. Higher values allow more diffusion. Default \code{0.2}.}
+
+\item{max_iter}{Integer. Maximum number of iterations before stopping,
+regardless of convergence. Default \code{10000}.}
+
+\item{window}{Integer. Number of consecutive iterations with identical rank
+order required to declare convergence. Default \code{20}.}
+
+\item{verbose}{Logical. If \code{TRUE} (default), prints the number of
+iterations at convergence for each network.}
 }
 \value{
-matrix with final phenotypic scores after iterative propagation in a physical protein-protein interaction network and in a functional one.
+A \code{data.frame} with one row per gene and six columns:
+  \code{Symbol_Funct} and \code{geneID_Funct} (gene symbol and Ensembl ID,
+  sorted by functional score), \code{PriorFunct} (propagated functional
+  network score), \code{Symbol_Phys} and \code{geneID_Phys} (sorted by
+  physical score), and \code{PriorPhys} (propagated physical network score).
+  The two networks are ranked independently. Pass this object directly as
+  \code{GlobalPhenotypicScore} to \code{priorBestVariant()}.
 }
 \description{
-Propagation of the phenotypic score within of a multilayer network with physical and functional interactions
+Propagates the phenotypic prior score across two independent gene interaction
+networks (physical and functional) using an iterative random-walk algorithm.
+At each iteration, each gene's score is updated as a weighted combination of
+its neighbours' scores (\code{alpha}) and its original prior score
+(\code{1 - alpha}). Convergence is assessed by rank-order stability over a
+sliding window of recent iterations. Returns a ranked gene table that is used
+as \code{GlobalPhenotypicScore} in \code{priorBestVariant()}.
 }
 \examples{
-HPOpatient = c("HP:0004481","HP:0002376","HP:0001257","HP:0001250","HP:0000238","HP:0002922","HP:0000365")
-Y<-proteinScore(HPOpatient)
-ClinPriorGeneScore<-MatrixPropagation(Y,alpha=0.2)
+HPOpatient <- c("HP:0004481", "HP:0002376", "HP:0001257", "HP:0001250",
+                "HP:0000238", "HP:0002922", "HP:0000365")
+result              <- proteinScore(HPOpatient)
+GlobalPhenotypicScore <- MatrixPropagation(result$scores, alpha = 0.2)
 }
