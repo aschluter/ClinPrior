@@ -144,7 +144,7 @@ head(results)
 
 | ClinPriorPosition | CHROM | POS | REF | ALT | genesList | clinvar | knownDisease | Consequence | cDNA | Protein | ClinPriorScore |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 62044929 | A | G | KCNQ2 | pathogenic | \|AD\| | missense_variant | ENST00000359125.2:c.1637T>C | ENSP00000352035.2:p.Met546Thr | 0.7597 |
+| 1 | 20 | 62044929 | A | G | KCNQ2 | pathogenic | \|AD\| | missense_variant | ENST00000359125.2:c.1637T>C | ENSP00000352035.2:p.Met546Thr | 0.7597 |
 
 To inspect filters and scores for a specific variant:
 ```r
