@@ -99,11 +99,11 @@ GlobalPhenotypicScore <- MatrixPropagation(result$scores, alpha = 0.2)
 head(GlobalPhenotypicScore)
 ```
 
-| Symbol | geneID | PriorFunct | Symbol | geneID | PriorPhys |
+| Symbol_Funct | geneID_Funct | PriorFunct | Symbol_Phys | geneID_Phys | PriorPhys |
 | --- | --- | --- | --- | --- | --- |
-| L2HGDH | 79944 | 0.756 | L2HGDH | 79944 | 0.763 |
-| SUMF1 | 285362 | 0.673 | SUMF1 | 285362 | 0.675 |
-| NDUFAF4 | 29078 | 0.587 | ADGRG1 | 9289 | 0.672 |
+| KCNQ2 | 3785 | 0.756 | KCNQ2 | 3785 | 0.808 |
+| KCNQ3 | 3786 | 0.038 | KCNQ3 | 3786 | 0.037 |
+| SCN8A | 6334 | 0.034 | SCN8A | 6334 | 0.037 |
 
 `PriorFunct` and `PriorPhys` report the phenotypic scores after propagation through the functional and physical gene-gene interaction networks. Pass this object directly to `priorBestVariant()` as `GlobalPhenotypicScore`.
 
@@ -142,13 +142,13 @@ results <- priorBestVariant(
 head(results)
 ```
 
-| ClinPriorPosition | CHROM | POS | REF | ALT | genesList | clinvar | knownDisease | Consequence | cDNA | Protein |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 20 | 62044929 | A | G | KCNQ2 | pathogenic | AD | missense_variant | c.1637T>C | p.Met546Thr |
+| ClinPriorPosition | CHROM | POS | REF | ALT | genesList | clinvar | knownDisease | Consequence | cDNA | Protein | ClinPriorScore |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | 62044929 | A | G | KCNQ2 | pathogenic | \|AD\| | missense_variant | ENST00000359125.2:c.1637T>C | ENSP00000352035.2:p.Met546Thr | 0.7597 |
 
 To inspect filters and scores for a specific variant:
 ```r
-attr(results, "traceVariant")("20", 62044929, "A", "G")
+attr(results, "traceVariant")("1", 62044929, "A", "G")
 ```
 
 #### Splicing modes
