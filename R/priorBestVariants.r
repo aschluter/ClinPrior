@@ -1,18 +1,18 @@
 # -- OMIM cache - loaded once per session --------------------------------------
 # Call .omim_cache_reset() to force reload (e.g. after updating the file)
-.omim_cache <- NULL
+# Posa això:
+.clinprior_cache <- new.env(parent = emptyenv())
+.clinprior_cache$omim <- NULL
 
-#' Load and cache the OMIM phenotype table
-#' @keywords internal
 .get_omim_dt <- function(package = "ClinPrior") {
-  if(!is.null(.omim_cache)) return(.omim_cache)
-  omim_file <- file.path(system.file("extdata", package=package),
+  if(!is.null(.clinprior_cache$omim)) return(.clinprior_cache$omim)
+  omim_file <- file.path(system.file("extdata", package = package),
                          "OMIMphenotype_UCSCtable.txt")
   if(!file.exists(omim_file)) {
     message("Warning: OMIMphenotype_UCSCtable.txt not found - knownDiseaseLabel will be empty")
-    return(data.table(approvedGeneSymbol=character(), phenotype=character()))
+    return(data.table(approvedGeneSymbol = character(), phenotype = character()))
   }
-  dt <- fread(omim_file, sep="\t", header=TRUE, quote="", fill=TRUE)
+  dt <- fread(omim_file, sep = "\t", header = TRUE, quote = "", fill = TRUE)
   dt <- dt[, .(
     approvedGeneSymbol = hg38.omim2gene.approvedGeneSymbol,
     phenotypeId        = hg38.omimPhenotype.phenotypeId,
@@ -23,14 +23,12 @@
              !is.na(phenotypeId)       & phenotypeId        != ""]
   dt <- unique(dt, by = "phenotypeId")
   dt <- dt[, .(phenotype = paste(phenotype, collapse = " | ")), by = approvedGeneSymbol]
-  .omim_cache <<- dt
+  .clinprior_cache$omim <- dt
   dt
 }
 
-#' Reset the OMIM phenotype cache
-#' @keywords internal
 .omim_cache_reset <- function() {
-  .omim_cache <<- NULL
+  .clinprior_cache$omim <- NULL
   invisible(NULL)
 }
 
