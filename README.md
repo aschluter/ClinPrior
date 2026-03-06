@@ -163,7 +163,7 @@ results <- priorBestVariant(
   variants              = variants,
   sampleName            = "HG001",
   GlobalPhenotypicScore = GlobalPhenotypicScore,
-  assembly              = "assembly38",
+  assembly              = "assembly37",
   splicingMode          = "full",
   splicingDistance      = 1000,   # can be set to any distance in bp
   splicingWorkers       = 12
