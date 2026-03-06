@@ -283,16 +283,22 @@ output <- MaxentScanClinPrior(
 The input VCF file must be pre-annotated with the [Ensembl Variant Effect Predictor (VEP)](https://www.ensembl.org/info/docs/tools/vep/index.html) before running ClinPrior. Required plugins: CADD and MaxEntScan.
 
 ```bash
-vep --af --af_gnomade --af_gnomadg --appris --biotype --buffer_size 500 \
-    --cache --ccds --check_existing --database 0 \
-    --dir [PATH]/cache --dir_plugins [PATH]/VEP_plugins \
-    --distance 5000 --fasta_dir [PATH]/fasta \
-    --filter_common --force --fork 4 --hgvs \
-    --input_file [PATH]/vcf_test.vcf \
-    --output_file [PATH]/output.vcf \
-    --pick_allele --polyphen b --pubmed --quiet \
-    --regulatory --safe --sift b --stats_text \
-    --symbol --transcript_version --tsl --var_synonyms --vcf
+vep \
+  --dir $HOME/vep_data \
+  --fasta $HOME/vep_data/homo_sapiens/112_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+  --input_file [PATH]/input.vcf.gz \
+  --output_file [PATH]/output.vep.vcf.gz \
+  --compress_output gzip \
+  --af --af_gnomade --af_gnomadg --appris --biotype \
+  --buffer_size 10000 --cache --ccds --check_existing \
+  --distance 5000 --filter_common --force --fork 12 \
+  --hgvs --mane --no_stats --offline \
+  --pick_allele --polyphen b --quiet \
+  --regulatory --safe --sift b \
+  --symbol --transcript_version --tsl --var_synonyms --vcf \
+  --plugin CADD,snv=$HOME/vep_data/CADD/whole_genome_SNVs.tsv.gz \
+  --plugin CADD,sv=$HOME/vep_data/CADD/gnomad.genomes.r4.0.indel.tsv.gz,force_annotate=1 \
+  --plugin MaxEntScan,$HOME/vep_data/MaxEntScan/fordownload,SWA,NCSS
 ```
 
 Alternatively, use the [VEP web interface](https://www.ensembl.org/info/docs/tools/vep/index.html) with the following additional options: CCDS, Protein, HGVS, Variant synonyms, gnomAD (exomes) allele frequencies, gnomAD (genomes) allele frequencies, CADD, MaxEntScan, Exclude common variants, and in Restrict results select "Show one selected consequence per variant allele".
