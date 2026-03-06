@@ -145,8 +145,6 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   assembly <<- assembly
   dest <- system.file(paste("extdata", assembly, sep="/"), package="ClinPrior")
   ClinPriorfiles <- list.files(path=dest, full.names=TRUE)
-  CCRautosomesFile <- ClinPriorfiles[grep("ccrs.autosomes.*gz$", ClinPriorfiles)]
-  CCRxchromFile    <- ClinPriorfiles[grep("ccrs.xchrom.*gz$",    ClinPriorfiles, perl=TRUE)]
   constrains1KB    <- ClinPriorfiles[grep("constraint_z_genome_1kb.qc.download.txt.gz", ClinPriorfiles, perl=TRUE)]
   
   # -- OMIM phenotype table (cached across calls) ----------------------------
