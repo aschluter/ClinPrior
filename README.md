@@ -3,7 +3,7 @@
 ClinPrior is an interactome-driven prioritization method that predicts the patient's disease causal variant based on the description of the phenotype in HPO terms. This prioritization is divided into two steps:
 
 - **Gene prioritization:** computation of a phenotypic metric by comparing the patient's phenotype with HPO-Gene associations from existing human disease databases (prior knowledge) and iterative propagation of this phenotypic score within a multilayer network with physical and functional interactions.
-- **Variant prioritization:** filtering and calculation of a variant deleteriousness score from WES or WGS sequences in a VCF (variant calling format) file. The last step returns a ranked list with the best variants that can explain the patient's phenotype at the top.
+- **Variant prioritization:** filtering and calculation of a variant deleteriousness score from WES or WGS sequences in a VCF (variant calling format) file annotated with VEP. Supports both **GRCh37 (hg19)** and **GRCh38 (hg38)** genome assemblies. The last step returns a ranked list with the best variants that can explain the patient's phenotype at the top.
 
 If you find this code useful in your clinical genomics analysis, please cite:
 
@@ -48,6 +48,7 @@ The following external tools must be installed and available in your `PATH`:
 ---
 
 ## Installation
+> **ClinPrior supports both WES and WGS data, and both GRCh37 (hg19) and GRCh38 (hg38) genome assemblies.**
 
 ```r
 install.packages("devtools")
