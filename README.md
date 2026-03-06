@@ -311,13 +311,13 @@ Alternatively, use the [VEP web interface](https://www.ensembl.org/info/docs/too
 The ClinPrior Docker image is available on [DockerHub](https://hub.docker.com/r/aschluterclinprior/clinprior2):
 
 ```bash
-docker pull aschluterclinprior/clinprior2:latest
-sudo docker run -it clinprior bash
+docker pull ghcr.io/aschluter/clinprior:latest
+docker run -it ghcr.io/aschluter/clinprior:latest R
 ```
 
 For HPC clusters, create a Singularity image:
 ```bash
-singularity pull docker://aschluterclinprior/clinprior
+singularity pull docker://ghcr.io/aschluter/clinprior:latest
 ```
 
 ---
