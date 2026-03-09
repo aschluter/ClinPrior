@@ -13,12 +13,12 @@ priorBestVariant(
   frequenceAD = 5e-05,
   GlobalPhenotypicScore,
   assembly = "assembly38",
-  freqInterna = 0.4,
+  freqInterna = 0.05,
   nCalledMin = 10,
   nAllelesMax = 5,
   discard_ClinVar_Benign = TRUE,
   freqInternaFile = NULL,
-  splicingMode = "full",
+  splicingMode = "vep",
   splicingDistance = 1000,
   splicingWorkers = 8,
   discard_zero_score = FALSE
@@ -55,11 +55,10 @@ frequency file. Default \code{0.4}.}
 \item{nCalledMin}{Integer. Minimum number of called samples in the internal
 cohort required to apply the frequency filter. Default \code{10}.}
 
-\item{nAllelesMax}{Integer. Maximum number of alleles observed in the internal
-cohort for a variant to be retained. Variants exceeding this count are
-discarded, including those at hypervariable positions (e.g. STR/microsatellites)
-where no exact REF/ALT match exists in the internal dictionary but the position
-has more than \code{nAllelesMax} entries. Default \code{5}.}
+\item{nAllelesMax}{Integer. Maximum number of different alleles at the same
+position in the internal cohort dictionary. Positions with more than
+\code{nAllelesMax} entries are considered hypervariable (e.g. STR/microsatellites)
+and discarded regardless of REF/ALT match. Default \code{5}.}
 
 \item{discard_ClinVar_Benign}{Logical. If \code{TRUE} (default), removes variants
 annotated as benign or likely_benign in ClinVar, unless also annotated as

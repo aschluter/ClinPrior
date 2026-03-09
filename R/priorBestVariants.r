@@ -1,6 +1,5 @@
 # -- OMIM cache - loaded once per session --------------------------------------
 # Call .omim_cache_reset() to force reload (e.g. after updating the file)
-# Posa això:
 .clinprior_cache <- new.env(parent = emptyenv())
 .clinprior_cache$omim <- NULL
 
@@ -62,11 +61,10 @@
 #'   frequency file. Default \code{0.4}.
 #' @param nCalledMin Integer. Minimum number of called samples in the internal
 #'   cohort required to apply the frequency filter. Default \code{10}.
-#' @param nAllelesMax Integer. Maximum number of alleles observed in the internal
-#'   cohort for a variant to be retained. Variants exceeding this count are
-#'   discarded, including those at hypervariable positions (e.g. STR/microsatellites)
-#'   where no exact REF/ALT match exists in the internal dictionary but the position
-#'   has more than \code{nAllelesMax} entries. Default \code{5}.
+#' @param nAllelesMax Integer. Maximum number of different alleles at the same
+#'   position in the internal cohort dictionary. Positions with more than
+#'   \code{nAllelesMax} entries are considered hypervariable (e.g. STR/microsatellites)
+#'   and discarded regardless of REF/ALT match. Default \code{5}.
 #' @param discard_ClinVar_Benign Logical. If \code{TRUE} (default), removes variants
 #'   annotated as benign or likely_benign in ClinVar, unless also annotated as
 #'   pathogenic or likely_pathogenic.
@@ -117,7 +115,7 @@
 priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
                              frequenceAR=0.01, frequenceAD=0.00005,
                              GlobalPhenotypicScore, assembly="assembly38",
-                             freqInterna=0.4, nCalledMin=10, nAllelesMax=5,
+                             freqInterna=0.05, nCalledMin=10, nAllelesMax=5,
                              discard_ClinVar_Benign=TRUE,
                              freqInternaFile=NULL,
                              # -- Splicing mode ------------------------------------------------------
@@ -125,15 +123,15 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
                              # "full" : calls MaxentScanClinPrior for:
                              #            - intronic variants <= splicingDistance bp from the boundary (HGVSc)
                              #            - those that already had Splicing != || from VEP
-                             splicingMode     = "full",
+                             splicingMode     = "vep",
                              splicingDistance = 1000,  # maximum distance to the boundary for intronic variants
-                             splicingWorkers  = 8,    # number of parallel workers for "full" mode
+                             splicingWorkers  = 8,     # number of parallel workers for "full" mode
                              # -- Output filters -----------------------------------------------------
                              # discard_zero_score: if TRUE (default FALSE), removes rows where
                              #   VariantScore == 0 from the final table.
                              discard_zero_score = FALSE
 ) {
-
+  
   # Initialise reticulate in the main process BEFORE starting workers
   if(splicingMode == "full") {
     requireNamespace("reticulate", quietly = TRUE)
@@ -143,7 +141,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   assembly <<- assembly
   dest <- system.file(paste("extdata", assembly, sep="/"), package="ClinPrior")
   ClinPriorfiles <- list.files(path=dest, full.names=TRUE)
-  constrains1KB    <- ClinPriorfiles[grep("constraint_z_genome_1kb.qc.download.txt.gz", ClinPriorfiles, perl=TRUE)]
+  constrains1KB  <- ClinPriorfiles[grep("constraint_z_genome_1kb.qc.download.txt.gz", ClinPriorfiles, perl=TRUE)]
   
   # -- OMIM phenotype table (cached across calls) ----------------------------
   omim_dt <- .get_omim_dt()
@@ -162,22 +160,24 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   variants$INFO <- NULL
   gc()
   
-  gene_pos        <- match("Gene",            meta)
-  consequence_pos <- match("Consequence",     meta)
-  impact_pos      <- match("IMPACT",          meta)
-  cdna_pos        <- match("HGVSc",           meta)
-  prot_pos        <- match("HGVSp",           meta)
-  biotype_pos     <- match("BIOTYPE",         meta)
-  af_pos          <- match("AF",              meta)
-  gnomadg_pos     <- match("gnomADg_AF",      meta)
-  gnomade_pos     <- match("gnomADe_AF",      meta)
-  clinvar_pos     <- match("CLIN_SIG",        meta)
-  cadd_pos        <- match("CADD_PHRED",      meta)
-  maxent_diff_pos <- match("MaxEntScan_diff",  meta)
-  maxent_ref_pos  <- match("MaxEntScan_ref",   meta)
-  maxent_alt_pos  <- match("MaxEntScan_alt",   meta)
+  gene_pos        <- match("Gene",           meta)
+  consequence_pos <- match("Consequence",    meta)
+  impact_pos      <- match("IMPACT",         meta)
+  cdna_pos        <- match("HGVSc",          meta)
+  prot_pos        <- match("HGVSp",          meta)
+  biotype_pos     <- match("BIOTYPE",        meta)
+  af_pos          <- match("AF",             meta)
+  gnomadg_pos     <- match("gnomADg_AF",     meta)
+  gnomade_pos     <- match("gnomADe_AF",     meta)
+  clinvar_pos     <- match("CLIN_SIG",       meta)
+  cadd_pos        <- match("CADD_PHRED",     meta)
+  maxent_diff_pos <- match("MaxEntScan_diff", meta)
+  maxent_ref_pos  <- match("MaxEntScan_ref",  meta)
+  maxent_alt_pos  <- match("MaxEntScan_alt",  meta)
   
+  # FIX: protect getField against NA positions (field absent from VCF)
   getField <- function(pos) {
+    if(is.na(pos)) return(rep(NA_character_, nrow(variants)))
     stri_list2matrix(lapply(csq_split, `[`, pos), byrow=TRUE)[,1]
   }
   
@@ -203,11 +203,10 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   splicing_vep <- ifelse(!is.na(pct_imp) & pct_imp >= 0.2,
                          paste(me_diff, me_ref, me_alt, sep="|"),
                          "||")
-  # -- Free large CSQ intermediates - no longer needed after field extraction -
+  # -- Free large CSQ intermediates ------------------------------------------
   rm(csq_raw, csq_first, csq_split, hdr_csq,
      af1, af2, af3, me_diff, me_ref, me_alt, pct_imp)
   gc()
-  
   
   ensembl_id  <- gene
   gene_symbol <- totalEnsembl[match(ensembl_id, totalEnsembl[,3]), 1]
@@ -310,9 +309,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     res_chr <- as.character(res_freq[[1]])
     res_pos <- as.numeric(res_freq[[2]])
     
-    # -- NOU: posicions hipervariables (STR/microsatel.lits) --------------
-    # Si una posicio te mes entrades al diccionari que nAllelesMax,
-    # es hipervariable: forcem exclusio independentment del match REF/ALT.
+    # -- Posicions hipervariables (STR/microsatel.lits) ----------------------
     pos_key        <- paste(res_chr, res_pos, sep = "-")
     pos_key_counts <- table(pos_key)
     hypervar_keys  <- names(pos_key_counts[pos_key_counts > nAllelesMax])
@@ -329,7 +326,6 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
       nCalled_vec[idx_pre[is_hypervar]]     <- nCalledMin + 1
     }
     
-    # Col 3: alleles en format Hail ["REF","ALT"]
     alleles_col <- as.character(res_freq[[3]])
     is_hail_fmt <- any(grepl("^\\[", alleles_col, perl=TRUE))
     
@@ -341,11 +337,10 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
       res_alt <- as.character(res_freq[[4]])
     }
     
-    # Col 4: AC, Col 5: AN, Col 6: AF, Col 7: n_called
-    res_ac  <- suppressWarnings(as.integer(res_freq[[4]]))
-    res_an  <- suppressWarnings(as.integer(res_freq[[5]]))  # AN, si cal
-    res_af  <- suppressWarnings(as.numeric(gsub(",", ".", res_freq[[6]])))
-    res_nc  <- suppressWarnings(as.numeric(res_freq[[7]]))
+    res_ac <- suppressWarnings(as.integer(res_freq[[4]]))
+    res_an <- suppressWarnings(as.integer(res_freq[[5]]))
+    res_af <- suppressWarnings(as.numeric(gsub(",", ".", res_freq[[6]])))
+    res_nc <- suppressWarnings(as.numeric(res_freq[[7]]))
     
     res_key <- paste(res_chr, res_pos, res_ref, res_alt, sep="-")
     var_key <- paste0(chrom_norm, "-", variants$POS[idx_pre], "-",
@@ -358,11 +353,10 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     nAlleles_vec[idx_pre[has_match]]    <- res_ac[pos_match[has_match]]
   }
   
-  keep_freqInterna <- (is.na(freqInterna_vec) |
-                         is.na(nCalled_vec)    |
+  # FIX: nAlleles_vec (AC) no s'usa per filtrar - només per informació
+  keep_freqInterna <- (is.na(freqInterna_vec) | is.na(nCalled_vec) |
                          nCalled_vec < nCalledMin |
-                         freqInterna_vec <= freqInterna) &
-    (is.na(nAlleles_vec) | nAlleles_vec <= nAllelesMax)
+                         freqInterna_vec <= freqInterna)
   
   # -- ClinVar Benign filter -------------------------------------------------
   if(discard_ClinVar_Benign) {
@@ -500,7 +494,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     hi         <- HIGH[idx] != "."
     mo         <- MODERATE[idx] != "."
     sp_vep_raw <- splicing_vep[idx] != "||"
-    sp_full_raw<- splicing[idx] != "||" & splicing[idx] != "|||"
+    sp_full_raw <- splicing[idx] != "||" & splicing[idx] != "|||"
     sp         <- if(splicingMode == "full") sp_vep_raw | sp_full_raw else sp_full_raw
     cd         <- cadd[idx]
     c1kb       <- C1KB[idx]
@@ -519,27 +513,27 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     s[hi] <- s[hi] + 0.4
     s[hi & !is.na(pl) & pl > 0.9] <- s[hi & !is.na(pl) & pl > 0.9] + 0.2
     s[hi & !is.na(lz) & lz > 3]   <- s[hi & !is.na(lz) & lz > 3]   + 0.1
-    s[hi & !is.na(cd) & cd >= 20] <- s[hi & !is.na(cd) & cd >= 20] + 0.05
-    s[hi & !is.na(cd) & cd >= 25] <- s[hi & !is.na(cd) & cd >= 25] + 0.05
-    s[hi & !is.na(cd) & cd >= 30] <- s[hi & !is.na(cd) & cd >= 30] + 0.1
+    s[hi & !is.na(cd) & cd >= 20]  <- s[hi & !is.na(cd) & cd >= 20] + 0.05
+    s[hi & !is.na(cd) & cd >= 25]  <- s[hi & !is.na(cd) & cd >= 25] + 0.05
+    s[hi & !is.na(cd) & cd >= 30]  <- s[hi & !is.na(cd) & cd >= 30] + 0.1
     
     # MODERATE impact variants (excluding splicing and HIGH)
     mo2 <- mo & !sp & !hi
     s[mo2] <- s[mo2] + 0.2
     s[mo2 & !is.na(pl) & pl > 0.9] <- s[mo2 & !is.na(pl) & pl > 0.9] + 0.1
     s[mo2 & !is.na(mz) & mz > 3]   <- s[mo2 & !is.na(mz) & mz > 3]   + 0.05
-    s[mo2 & !is.na(cd) & cd >= 20] <- s[mo2 & !is.na(cd) & cd >= 20] + 0.05
-    s[mo2 & !is.na(cd) & cd >= 25] <- s[mo2 & !is.na(cd) & cd >= 25] + 0.05
-    s[mo2 & !is.na(cd) & cd >= 30] <- s[mo2 & !is.na(cd) & cd >= 30] + 0.1
+    s[mo2 & !is.na(cd) & cd >= 20]  <- s[mo2 & !is.na(cd) & cd >= 20] + 0.05
+    s[mo2 & !is.na(cd) & cd >= 25]  <- s[mo2 & !is.na(cd) & cd >= 25] + 0.05
+    s[mo2 & !is.na(cd) & cd >= 30]  <- s[mo2 & !is.na(cd) & cd >= 30] + 0.1
     
     # SPLICING VEP (score 0.2 - high confidence, within <=30bp of canonical boundary)
     sp2_vep <- sp_vep & !hi
     s[sp2_vep] <- s[sp2_vep] + 0.2
     s[sp2_vep & !is.na(pl) & pl > 0.9] <- s[sp2_vep & !is.na(pl) & pl > 0.9] + 0.1
     s[sp2_vep & !is.na(lz) & lz > 3]   <- s[sp2_vep & !is.na(lz) & lz > 3]   + 0.1
-    s[sp2_vep & !is.na(cd) & cd >= 20] <- s[sp2_vep & !is.na(cd) & cd >= 20] + 0.1
-    s[sp2_vep & !is.na(cd) & cd >= 25] <- s[sp2_vep & !is.na(cd) & cd >= 25] + 0.1
-    s[sp2_vep & !is.na(cd) & cd >= 30] <- s[sp2_vep & !is.na(cd) & cd >= 30] + 0.1
+    s[sp2_vep & !is.na(cd) & cd >= 20]  <- s[sp2_vep & !is.na(cd) & cd >= 20] + 0.1
+    s[sp2_vep & !is.na(cd) & cd >= 25]  <- s[sp2_vep & !is.na(cd) & cd >= 25] + 0.1
+    s[sp2_vep & !is.na(cd) & cd >= 30]  <- s[sp2_vep & !is.na(cd) & cd >= 30] + 0.1
     
     # SPLICING full-only (score 0.05 - lower confidence, cryptic distant gains)
     sp2_full <- sp_full_only & !hi
@@ -606,14 +600,23 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     list(cp = round(cp, 4), vs_norm = round(vs_norm, 4))
   }
   
-  # -- CmpHET candidate pool: all HET variants passing keep_AR with >=2 per gene
-  # Physical phasing is applied LATER, after discard_zero_score, so that the
-  # CIS/TRANS decision is made only on variants that survive all score filters.
+  # -- Physical phasing initialisation ---------------------------------------
   phase_id_full  <- rep(NA_character_, nrow(variants))
   cis_phased_out <- rep(FALSE, nrow(variants))
   
+  # FIX: Omplir phaseGT per TOTS els HET ABANS de constructTable
+  # Permet veure el PID a la columna phaseGT fins i tot per variants que
+  # han estat eliminades del CmpHET per CIS (surten com HET a la taula final)
+  het_all_idx <- which(is_HET)
+  if(length(het_all_idx) > 0) {
+    gt_full_all <- if(!is.null(variants$GT_full)) variants$GT_full[het_all_idx] else variants$GT[het_all_idx]
+    m_pid_all   <- regexpr("\\d+_[ACGT*]+_[ACGT*]+", gt_full_all, perl=TRUE)
+    has_pid_all <- m_pid_all > 0
+    phase_id_full[het_all_idx[has_pid_all]] <- regmatches(gt_full_all, m_pid_all)
+  }
+  
+  # -- CmpHET candidate pool -------------------------------------------------
   het_idx_all <- which(is_HET & keep_AR)
-  # keep_AR encodes: gnomAD <= frequenceAR, freqInterna, nAlleles, ClinVar benign
   
   cmphet_gene_all <- gene_symbol[het_idx_all]
   null_pos_all    <- which(is.na(cmphet_gene_all) | cmphet_gene_all == "")
@@ -674,7 +677,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
       gnomAD            = gnomAD[idx],
       freqInterna       = freqInterna_vec[idx],
       nCalled           = nCalled_vec[idx],
-      nAlleles          = nAlleles_vec[idx],
+      AC_interna        = nAlleles_vec[idx],
       FunctPos          = FunctPos[idx],
       FunctScore        = FunctScore[idx],
       PhysPos           = PhysPos[idx],
@@ -683,7 +686,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
       ClinPriorScore    = cp,
       OrderScore        = order_score,
       GT                = variants$GT[idx],
-      phaseGT           = phase_id_full[idx],  # filled in after phasing below
+      phaseGT           = phase_id_full[idx],
       GQ_DP_AD          = paste0(variants$GQ[idx], ":", variants$DP[idx], ":", variants$AD[idx]),
       inheritance       = inheritance,
       stringsAsFactors  = FALSE
@@ -713,8 +716,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   tableEnsemble <- rbind(tableHOM, tableAD, tableCMPHET, tableXL)
   if(is.null(tableEnsemble) || nrow(tableEnsemble) == 0) return(data.frame())
   
-  
-  # -- Physical phasing: applied NOW on the surviving CmpHET rows ------------
+  # -- Physical phasing: applied on CmpHET rows ------------------------------
   #
   # CIS/TRANS rules:
   #   - All phased variants in a gene share the SAME haplotype ID AND no
@@ -731,7 +733,6 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   if(any(cmphet_rows)) {
     cmphet_sub <- tableEnsemble[cmphet_rows, ]
     
-    # Match rows back to original variant indices via CHROM+POS+REF+ALT
     orig_idx <- match(
       paste(cmphet_sub$CHROM, cmphet_sub$POS, cmphet_sub$REF, cmphet_sub$ALT),
       paste(variants$CHROM,   variants$POS,   variants$REF,   variants$ALT)
@@ -739,15 +740,15 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     
     gt_full_sub <- if(!is.null(variants$GT_full)) variants$GT_full[orig_idx] else variants$GT[orig_idx]
     
-    # Extract PID from GT_full
-    m_pid   <- regexpr("\\d+_[ACGT*]+_[ACGT*]+", gt_full_sub, perl=TRUE)
-    has_pid <- m_pid > 0
+    m_pid     <- regexpr("\\d+_[ACGT*]+_[ACGT*]+", gt_full_sub, perl=TRUE)
+    has_pid   <- m_pid > 0
     phase_ids <- rep(NA_character_, nrow(cmphet_sub))
     phase_ids[has_pid] <- regmatches(gt_full_sub, m_pid)
     
-    # Store phaseGT in the table and in the global vector for traceVariant
-    cmphet_sub$phaseGT           <- phase_ids
-    phase_id_full[orig_idx]      <- phase_ids
+    cmphet_sub$phaseGT <- phase_ids
+    # FIX: only update entries that have a PID to avoid overwriting values
+    # already set by the het_all_idx block above
+    phase_id_full[orig_idx[has_pid]] <- phase_ids[has_pid]
     
     keep_row <- rep(TRUE, nrow(cmphet_sub))
     
@@ -759,19 +760,14 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
       
       if(length(ph_notna) >= 2 && length(unique(ph_notna)) == 1) {
         if(n_unphased == 0) {
-          # Pure CIS -> remove entire gene from CmpHET
-          keep_row[pos_g]                    <- FALSE
-          cis_phased_out[orig_idx[pos_g]]    <- TRUE
+          keep_row[pos_g]                 <- FALSE
+          cis_phased_out[orig_idx[pos_g]] <- TRUE
         }
-        # n_unphased >= 1 -> keep ALL (unphased may be TRANS partner)
       }
-      # unique(ph_notna) > 1 -> confirmed TRANS -> keep all
-      # length(ph_notna) < 2 -> not enough info -> keep all (conservative)
     }
     
     cmphet_sub <- cmphet_sub[keep_row, ]
     
-    # After CIS removal a gene may be left with only 1 variant -> remove it
     gene_counts <- table(cmphet_sub$genesList)
     keep_genes  <- names(gene_counts[gene_counts >= 2])
     cmphet_sub  <- cmphet_sub[cmphet_sub$genesList %in% keep_genes, ]
@@ -823,6 +819,7 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     cat("clinvar:     ", clinvar[i], "\n")
     cat("gnomAD:      ", gnomAD[i], "\n")
     cat("freqInterna: ", freqInterna_vec[i], " | nCalled:", nCalled_vec[i], "\n")
+    cat("AC_interna:  ", nAlleles_vec[i], "\n")
     cat("C1KB:        ", ifelse(assembly == "assembly38", C1KB[i], "NA (assembly37)"), "\n")
     cat("CADD:        ", cadd[i], "\n")
     cat("pLI:         ", pLI[i], "| pRec:", pRec[i], "\n")
@@ -846,8 +843,11 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     cat("[", if(is_coding[i]) "OK" else "FAIL", "] is_coding\n")
     cv_benign <- grepl("benign|likely_benign", clinvar[i], ignore.case=TRUE)
     cv_pathog <- grepl("^pathogenic|likely_pathogenic", clinvar[i], ignore.case=TRUE, perl=TRUE)
-    cat("[", if(!cv_benign | cv_pathog) "OK" else "FAIL", "] keep_clinvar",
-        "(benign:", cv_benign, "| pathog:", cv_pathog, ")\n")
+    # FIX: respectar discard_ClinVar_Benign al traceVariant
+    cv_filter <- if(discard_ClinVar_Benign) (!cv_benign | cv_pathog) else TRUE
+    cat("[", if(cv_filter) "OK" else "FAIL", "] keep_clinvar",
+        "(benign:", cv_benign, "| pathog:", cv_pathog,
+        "| discard_ClinVar_Benign:", discard_ClinVar_Benign, ")\n")
     cat("[", if(is.na(gnomAD[i]) | gnomAD[i] <= frequenceAR) "OK" else "FAIL",
         "] gnomAD <= frequenceAR (", frequenceAR, ") | value:", gnomAD[i], "\n")
     cat("[", if(is.na(gnomAD[i]) | gnomAD[i] <= frequenceAD) "OK" else "FAIL",
@@ -894,8 +894,9 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
         cat("  [INFO] Loss discarded: distance >25bp from boundary\n")
     }
     
-    keep_AR_i <- is_coding[i] & (is.na(gnomAD[i]) | gnomAD[i] <= frequenceAR) & fi_ok & (!cv_benign | cv_pathog)
-    keep_AD_i <- is_coding[i] & (is.na(gnomAD[i]) | gnomAD[i] <= frequenceAD) & fi_ok & (!cv_benign | cv_pathog)
+    # FIX: respectar discard_ClinVar_Benign per keep_AR_i / keep_AD_i
+    keep_AR_i <- is_coding[i] & (is.na(gnomAD[i]) | gnomAD[i] <= frequenceAR) & fi_ok & cv_filter
+    keep_AD_i <- is_coding[i] & (is.na(gnomAD[i]) | gnomAD[i] <= frequenceAD) & fi_ok & cv_filter
     
     cat("\n--- INHERITANCE MODES THAT WOULD PASS ---\n")
     cat("[", if(is_HOM[i] & keep_AR_i) "YES" else "no", "] HOM\n")
@@ -932,6 +933,5 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   
   gc()
   attr(tableEnsemble, "traceVariant") <- traceVariant
-  #attr(results, "traceVariant")("11",	22236206,	"G",	"T")
   return(tableEnsemble)
 }
