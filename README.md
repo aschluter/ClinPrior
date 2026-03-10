@@ -318,14 +318,11 @@ The ClinPrior Docker image is available on [GitHub Container Registry](https://g
 ```bash
 docker pull ghcr.io/aschluter/clinprior:latest
 docker run -it ghcr.io/aschluter/clinprior:latest R
-<<<<<<< HEAD
-=======
 ```
 
 To mount your local data directory inside the container:
 ```bash
 docker run -it -v /path/to/your/data:/data ghcr.io/aschluter/clinprior:latest R
->>>>>>> affef3f (changes 09/03/2026)
 ```
 
 For HPC clusters, create a Singularity image:
