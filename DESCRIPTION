@@ -1,6 +1,6 @@
 Package: ClinPrior
 Type: Package
-Title: Disease Gene Prioritization Using Phenotypic and Variant Evidence
+Title: Disease Genetic Mutation Prioritization Using Phenotypic (HPO) and Variant Evidence
 Version: 4.0.0
 Authors@R: c(
     person("Agatha",       "Schlüter",           email = "aschluter@idibell.cat", role = c("aut", "cre")),
@@ -15,7 +15,7 @@ Authors@R: c(
     person("Juan José",    "Martínez",                                             role = "aut"),
     person("Carlos",       "Casasnovas",                                           role = "aut"),
     person("Aurora",       "Pujol",                                                role = "aut"))
-Description: Prioritizes candidate disease genes and variants by integrating variant
+Description: Prioritizes disease mutations by integrating variant
     pathogenicity (VEP consequence, CADD, splicing via MaxEntScan),
     gene constraint metrics (pLI, pRec, lof_z, mis_z, C1KB), inheritance
     mode (autosomal dominant, autosomal recessive, compound heterozygous,
