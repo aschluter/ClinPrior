@@ -220,12 +220,6 @@ Key parameters:
 
 When using `assembly = "assembly38"`, ClinPrior integrates gnomAD constraint z-scores computed in 1 kb genomic windows (`constraint_z_genome_1kb.qc.download.txt.gz`, included in the package). Variants in highly constrained regions receive a score bonus, providing additional evidence for pathogenicity independent of the variant consequence annotation.
 
-> **Note:** the constraint file must be tabix-indexed before first use:
-> ```bash
-> tabix -s 1 -b 2 -e 3 -S 1 constraint_z_genome_1kb.qc.download.txt.gz
-> ```
-
----
 
 ### 4. Standalone MaxEntScan analysis
 
@@ -327,7 +321,7 @@ docker run -it -v /path/to/your/data:/data ghcr.io/aschluter/clinprior:latest R
 
 For HPC clusters, create a Singularity image:
 ```bash
-singularity pull docker://ghcr.io/aschluter/clinprior:latest
+singularity pull docker://ghcr.io/aschluter/clinprior:4.0.0
 ```
 
 ---

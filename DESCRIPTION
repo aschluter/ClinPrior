@@ -15,7 +15,7 @@ Authors@R: c(
     person("Juan José",    "Martínez",                                             role = "aut"),
     person("Carlos",       "Casasnovas",                                           role = "aut"),
     person("Aurora",       "Pujol",                                                role = "aut"))
-Description: Prioritizes candidate disease genes by integrating variant
+Description: Prioritizes candidate disease genes and variants by integrating variant
     pathogenicity (VEP consequence, CADD, splicing via MaxEntScan),
     gene constraint metrics (pLI, pRec, lof_z, mis_z, C1KB), inheritance
     mode (autosomal dominant, autosomal recessive, compound heterozygous,
@@ -41,4 +41,6 @@ Imports:
     seqminer
 Suggests:
     BSgenome.Hsapiens.UCSC.hg19,
-    BSgenome.Hsapiens.UCSC.hg38
+    BSgenome.Hsapiens.UCSC.hg38,
+    spelling
+Language: en-US
