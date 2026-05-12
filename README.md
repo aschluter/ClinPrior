@@ -51,8 +51,8 @@ The following external tools must be installed and available in your `PATH`:
 > **ClinPrior supports both WES and WGS data, and both GRCh37 (hg19) and GRCh38 (hg38) genome assemblies.**
 
 ```r
-install.packages("devtools")
-devtools::install_github("aschluter/ClinPrior")
+install.packages("pak")
+pak::pak("aschluter/ClinPrior")
 library(ClinPrior)
 ```
 
