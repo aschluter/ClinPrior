@@ -296,8 +296,7 @@ vep \
   --pick_allele --polyphen b --quiet \
   --regulatory --safe --sift b \
   --symbol --transcript_version --tsl --var_synonyms --vcf \
-  --plugin CADD,snv=$HOME/vep_data/CADD/whole_genome_SNVs.tsv.gz \
-  --plugin CADD,indels=$HOME/vep_data/CADD/gnomad.genomes.r4.0.indel.tsv.gz,force_annotate=1 \
+  --plugin CADD,snv=$HOME/vep_data/CADD/whole_genome_SNVs.tsv.gz,indels=$HOME/vep_data/CADD/gnomad.genomes.r4.0.indel.tsv.gz,force_annotate=1 \
   --plugin MaxEntScan,$HOME/vep_data/MaxEntScan/fordownload,SWA,NCSS
 ```
 
