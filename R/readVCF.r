@@ -7,7 +7,7 @@
 #' blacklist of recurrent artefacts. Returns a \code{data.frame} ready to be
 #' passed to \code{priorBestVariant()}.
 #' 
-#' #' One row is returned per variant and gene. Multi-allelic records are split
+#' One row is returned per variant and gene. Multi-allelic records are split
 #' with \code{bcftools norm -m -any}, which does not split the CSQ field, so
 #' only the CSQ entries of the row's own allele are used. These entries are
 #' grouped by gene (\code{SYMBOL}, or \code{Gene} when empty) and, in each

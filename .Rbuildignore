@@ -4,3 +4,7 @@
 ^LICENSE$
 ^LICENSE\.md$
 ^cran-comments\.md$
+^\.positai$
+^\.claude$
+^data-raw$
+^\.github$

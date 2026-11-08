@@ -1,0 +1,93 @@
+# Monthly update of data/ClinPrior.RData (HPO, gnomAD constraint, Ensembl;
+# optionally BioGRID and BioPlex in the physical network, manual runs only).
+# Runs data-raw/update_clinprior.R on the dev branch, checks the package
+# example and opens a pull request to dev with the report. Nothing is merged
+# automatically.
+#
+# Scheduled and manual runs only work once this file is in the default
+# branch (main). The repository must allow GitHub Actions to create pull
+# requests: Settings > Actions > General > Workflow permissions.
+
+name: Update ClinPrior data
+
+on:
+  schedule:
+    - cron: "17 4 1 * *"   # day 1 of each month, 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      biogrid:
+        description: "Add BioGRID multi-validated physical interactions"
+        type: boolean
+        default: false
+      biogrid_systems:
+        description: "BioGRID systems: binary (direct) or ppi (binary + co-complex)"
+        type: choice
+        options: [binary, ppi]
+        default: binary
+      bioplex:
+        description: "Add BioPlex networks (HEK293T 3.0 and HCT116)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: System dependencies
+        run: sudo apt-get update && sudo apt-get install -y bcftools tabix
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'   # skip Suggests (BSgenome genomes, not needed here)
+          extra-packages: |
+            any::pkgload
+            any::curl
+
+      - name: Update data
+        id: update
+        run: |
+          set +e
+          extra=""
+          if [ "${{ inputs.biogrid }}" = "true" ]; then
+            extra="--biogrid --biogrid-systems=${{ inputs.biogrid_systems }}"
+          fi
+          if [ "${{ inputs.bioplex }}" = "true" ]; then
+            extra="$extra --bioplex"
+          fi
+          Rscript data-raw/update_clinprior.R --report="$RUNNER_TEMP/update_report.md" $extra
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "date=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          # 3 = no changes
+          if [ $status -ne 0 ] && [ $status -ne 3 ]; then exit $status; fi
+
+      - name: Check package example
+        if: steps.update.outputs.status == '0'
+        continue-on-error: true
+        run: Rscript data-raw/check_example.R "$RUNNER_TEMP/update_report.md"
+
+      - name: Open pull request to dev
+        if: steps.update.outputs.status == '0'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          base: dev
+          branch: data-update
+          add-paths: data/ClinPrior.RData
+          commit-message: "Update ClinPrior data (${{ steps.update.outputs.date }})"
+          title: "Update ClinPrior data (${{ steps.update.outputs.date }})"
+          body-path: ${{ runner.temp }}/update_report.md
+          delete-branch: true
