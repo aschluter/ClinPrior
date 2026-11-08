@@ -86,8 +86,9 @@ Default \code{1000}.}
 A \code{data.frame} of prioritized variants sorted by \code{OrderScore}
   (descending), with a \code{ClinPriorPosition} rank column prepended. The
   attribute \code{traceVariant} contains a diagnostic closure that can be called
-  as \code{attr(result, "traceVariant")(chrom, pos, ref, alt)} to inspect
-  filters and scores for any individual variant.
+  as \code{attr(result, "traceVariant")(chrom, pos, ref, alt, gene = NULL)}
+  to inspect filters and scores for any individual variant (one trace per
+  gene, or only \code{gene} if given).
 }
 \description{
 Main function of ClinPrior. Filters and scores genetic variants by integrating

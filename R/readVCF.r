@@ -6,6 +6,16 @@
 #' variant consequence (HIGH, MODERATE, splicing), synonymous variants, and a
 #' blacklist of recurrent artefacts. Returns a \code{data.frame} ready to be
 #' passed to \code{priorBestVariant()}.
+#' 
+#' #' One row is returned per variant and gene. Multi-allelic records are split
+#' with \code{bcftools norm -m -any}, which does not split the CSQ field, so
+#' only the CSQ entries of the row's own allele are used. These entries are
+#' grouped by gene (\code{SYMBOL}, or \code{Gene} when empty) and, in each
+#' gene, the entry kept is chosen by: protein-coding biotype, then the most
+#' severe consequence (VEP consequence order), then MANE Select, canonical
+#' transcript, Ensembl gene ID (\code{ENSG}) and the original order. The CSQ
+#' field of each row keeps only that entry, so \code{priorBestVariant()} uses
+#' the same consequence. Entries without gene (e.g. intergenic) give one row.
 #'
 #' @param sampleName Character. Sample identifier as written in the VCF file.
 #' @param filter Character. FILTER field value to select variants (e.g.
@@ -32,7 +42,7 @@
 #'   required by \code{priorBestVariant()}.
 #'
 #' @export
-#' @importFrom stringi stri_replace_first_regex stri_split_fixed stri_list2matrix
+#' @importFrom stringi stri_replace_first_regex stri_split_fixed stri_list2matrix stri_locate_first_regex stri_sub
 #' @importFrom data.table fread
 #' @importFrom utils read.csv
 #'
@@ -111,7 +121,17 @@ readVCF <- function(sampleName = "", filter="", geneQuality=20, readDepth=10,
                 " | bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%FILTER\t%INFO\t", fmt_fields, "\n'",
                 " > ", tmpTxt)
   
-  system(cmd)
+  # Run the pipe with pipefail, so a failure of any bcftools step stops here
+  errTxt <- tempfile(fileext=".err")
+  status <- system2("bash", c("-o", "pipefail", "-c", shQuote(cmd)), stderr = errTxt)
+  err    <- if(file.exists(errTxt)) readLines(errTxt, warn = FALSE) else character(0)
+  unlink(errTxt)
+  if(!identical(as.integer(status), 0L)) {
+    unlink(tmpTxt)
+    stop("bcftools failed while reading ", vcfFile, " (exit status ", status, "):\n",
+         paste(err[seq_len(min(20, length(err)))], collapse = "\n"), call. = FALSE)
+  }
+  if(length(err) > 0) message(paste(err, collapse = "\n"))
   
   # 5. Read data into R and delete temporary file
   df <- fread(tmpTxt, 
@@ -142,6 +162,12 @@ readVCF <- function(sampleName = "", filter="", geneQuality=20, readDepth=10,
   ImpactPOS      <- match("IMPACT",      meta)
   cDNAPOS        <- match("HGVSc",       meta)
   
+  # One row per variant and gene, with the most severe CSQ entry of each gene
+  if(nrow(df) > 0) {
+    sel     <- .csqPerGene(df$INFO, meta, df$REF, df$ALT)
+    df      <- df[sel$row, ]
+    df$INFO <- sel$info
+  }
   csq_raw   <- stri_replace_first_regex(df$INFO, ".*CSQ=", "")
   csq_first <- stri_replace_first_regex(csq_raw, ",.*", "")
   csq_split <- stri_split_fixed(csq_first, "|")
@@ -213,4 +239,96 @@ readVCF <- function(sampleName = "", filter="", geneQuality=20, readDepth=10,
   }
   attr(df, "vcfFile") <- vcfFile
   return(df)
+}
+
+# VEP consequence terms from most to least severe
+# (https://www.ensembl.org/info/genome/variation/prediction/predicted_data.html)
+.vepConsequenceOrder <- c(
+  "transcript_ablation", "splice_acceptor_variant", "splice_donor_variant",
+  "stop_gained", "frameshift_variant", "stop_lost", "start_lost",
+  "transcript_amplification", "feature_elongation", "feature_truncation",
+  "inframe_insertion", "inframe_deletion", "missense_variant",
+  "protein_altering_variant", "splice_donor_5th_base_variant",
+  "splice_region_variant", "splice_donor_region_variant",
+  "splice_polypyrimidine_tract_variant", "incomplete_terminal_codon_variant",
+  "start_retained_variant", "stop_retained_variant", "synonymous_variant",
+  "coding_sequence_variant", "mature_miRNA_variant", "5_prime_UTR_variant",
+  "3_prime_UTR_variant", "non_coding_transcript_exon_variant", "intron_variant",
+  "NMD_transcript_variant", "non_coding_transcript_variant",
+  "coding_transcript_variant", "upstream_gene_variant",
+  "downstream_gene_variant", "TFBS_ablation", "TFBS_amplification",
+  "TF_binding_site_variant", "regulatory_region_ablation",
+  "regulatory_region_amplification", "regulatory_region_variant",
+  "intergenic_variant", "sequence_variant"
+)
+
+# One CSQ entry per variant and gene.
+# info, ref, alt: one element per variant (after bcftools norm -m -any).
+# meta: CSQ field names from the VCF header.
+# Returns list(row = index of the variant for each output row,
+#              info = INFO with CSQ reduced to the chosen entry).
+.csqPerGene <- function(info, meta, ref, alt) {
+  n    <- length(info)
+  loc  <- stri_locate_first_regex(info, "CSQ=[^;\t]*")
+  has  <- which(!is.na(loc[, 1]))
+  if(length(has) == 0) return(list(row = seq_len(n), info = info))
+  
+  csq     <- stri_sub(info[has], loc[has, 1] + 4L, loc[has, 2])
+  entries <- stri_split_fixed(csq, ",")
+  row     <- rep.int(has, lengths(entries))
+  flat    <- unlist(entries, use.names = FALSE)
+  fields  <- stri_split_fixed(flat, "|")
+  
+  getF <- function(name) {
+    p <- match(name, meta)
+    if(is.na(p)) return(rep("", length(flat)))
+    v <- vapply(fields, `[`, "", p)
+    v[is.na(v)] <- ""
+    v
+  }
+  allele  <- getF("Allele")
+  conseq  <- getF("Consequence")
+  symbol  <- getF("SYMBOL")
+  gene    <- getF("Gene")
+  biotype <- getF("BIOTYPE")
+  mane    <- getF("MANE_SELECT")
+  canon   <- getF("CANONICAL")
+  
+  # Entries of the row's own allele. VEP writes the allele without the base
+  # shared by all alleles of the original record ("-" if empty); when they do
+  # not share it (e.g. A>T,AT) it keeps the full ALT. If nothing matches,
+  # all entries are kept.
+  strip   <- substr(ref, 1, 1) == substr(alt, 1, 1) & (nchar(ref) > 1 | nchar(alt) > 1)
+  alt_vep <- ifelse(strip, substring(alt, 2), alt)
+  alt_vep[alt_vep == ""] <- "-"
+  exact    <- allele == alt[row]
+  stripped <- allele == alt_vep[row]
+  anyRow   <- function(x) (rowsum(as.integer(x), row, reorder = FALSE)[, 1] > 0)[match(row, unique(row))]
+  allele_ok <- ifelse(anyRow(exact), exact, ifelse(anyRow(stripped), stripped, TRUE))
+  
+  # Most severe term of each entry (terms joined with "&")
+  terms     <- stri_split_fixed(conseq, "&")
+  cons_rank <- vapply(terms, function(t) min(match(t, .vepConsequenceOrder,
+                                                   nomatch = length(.vepConsequenceOrder) + 1L)), 1L)
+  
+  gene_key <- ifelse(symbol != "", symbol, gene)
+  keep     <- which(allele_ok)
+  ord <- keep[order(row[keep],
+                    biotype[keep] != "protein_coding",
+                    cons_rank[keep],
+                    mane[keep] == "",
+                    canon[keep] != "YES",
+                    !startsWith(gene[keep], "ENSG"),
+                    keep)]
+  best <- ord[!duplicated(paste(row[ord], gene_key[ord], sep = "\r"))]
+  
+  # Rebuild INFO for each chosen entry; variants without CSQ stay as they are
+  i        <- row[best]
+  new_info <- paste0(stri_sub(info[i], 1L, loc[i, 1] - 1L), "CSQ=", flat[best],
+                     stri_sub(info[i], loc[i, 2] + 1L))
+  no_csq   <- setdiff(seq_len(n), has)
+  out_row  <- c(i, no_csq)
+  out_info <- c(new_info, info[no_csq])
+  o <- order(out_row, seq_along(out_row))
+  list(row = out_row[o], info = out_info[o])
 }

@@ -85,8 +85,9 @@
 #' @return A \code{data.frame} of prioritized variants sorted by \code{OrderScore}
 #'   (descending), with a \code{ClinPriorPosition} rank column prepended. The
 #'   attribute \code{traceVariant} contains a diagnostic closure that can be called
-#'   as \code{attr(result, "traceVariant")(chrom, pos, ref, alt)} to inspect
-#'   filters and scores for any individual variant.
+#'   as \code{attr(result, "traceVariant")(chrom, pos, ref, alt, gene = NULL)}
+#'   to inspect filters and scores for any individual variant (one trace per
+#'   gene, or only \code{gene} if given).
 #'
 #' @export
 #' @importFrom data.table fread data.table setkey setkeyv foverlaps
@@ -224,7 +225,9 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   is_coding <- biotype == "protein_coding"
   
   # -- Gene constraint metrics -----------------------------------------------
+  # geneConstraints is keyed by Entrez ID or, for some genes, only by Ensembl ID
   metrics_idx <- match(gene_name, geneConstraints$gene)
+  metrics_idx[is.na(metrics_idx)] <- match(ensembl_id[is.na(metrics_idx)], geneConstraints$gene)
   pLI   <- geneConstraints$pLI[metrics_idx]
   pRec  <- geneConstraints$pRec[metrics_idx]
   lof_z <- geneConstraints$lof_z[metrics_idx]
@@ -337,10 +340,13 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
       res_alt <- as.character(res_freq[[4]])
     }
     
-    res_ac <- suppressWarnings(as.integer(res_freq[[4]]))
-    res_an <- suppressWarnings(as.integer(res_freq[[5]]))
-    res_af <- suppressWarnings(as.numeric(gsub(",", ".", res_freq[[6]])))
-    res_nc <- suppressWarnings(as.numeric(res_freq[[7]]))
+    # Format A (Hail): chr pos alleles AC AN AF n_called
+    # Format B:        chr pos REF ALT AC AN AF n_called  (one column more)
+    k <- if(is_hail_fmt) 0L else 1L
+    res_ac <- suppressWarnings(as.integer(res_freq[[4 + k]]))
+    res_an <- suppressWarnings(as.integer(res_freq[[5 + k]]))
+    res_af <- suppressWarnings(as.numeric(gsub(",", ".", res_freq[[6 + k]])))
+    res_nc <- suppressWarnings(as.numeric(res_freq[[7 + k]]))
     
     res_key <- paste(res_chr, res_pos, res_ref, res_alt, sep="-")
     var_key <- paste0(chrom_norm, "-", variants$POS[idx_pre], "-",
@@ -733,9 +739,10 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   if(any(cmphet_rows)) {
     cmphet_sub <- tableEnsemble[cmphet_rows, ]
     
+    # readVCF() gives one row per variant and gene: the gene is part of the key
     orig_idx <- match(
-      paste(cmphet_sub$CHROM, cmphet_sub$POS, cmphet_sub$REF, cmphet_sub$ALT),
-      paste(variants$CHROM,   variants$POS,   variants$REF,   variants$ALT)
+      paste(cmphet_sub$CHROM, cmphet_sub$POS, cmphet_sub$REF, cmphet_sub$ALT, cmphet_sub$genesList),
+      paste(variants$CHROM,   variants$POS,   variants$REF,   variants$ALT,   gene_symbol)
     )
     
     gt_full_sub <- if(!is.null(variants$GT_full)) variants$GT_full[orig_idx] else variants$GT[orig_idx]
@@ -795,19 +802,26 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
   force(dist_num)
   
   # -- Diagnostic function: trace a single variant through all filters/scores -
-  traceVariant <- function(chrom, pos, ref, alt) {
-    idx <- which(variants$CHROM == as.character(chrom) &
-                   variants$POS   == as.character(pos)   &
-                   variants$REF   == ref                 &
-                   variants$ALT   == alt)
+  traceVariant <- function(chrom, pos, ref, alt, gene = NULL, .row = NULL) {
+    idx <- if(!is.null(.row)) .row else
+      which(variants$CHROM == as.character(chrom) &
+              variants$POS   == as.character(pos)   &
+              variants$REF   == ref                 &
+              variants$ALT   == alt)
+    # One row per gene: restrict to the requested gene(s), or trace each row
+    if(!is.null(gene)) idx <- idx[gene_symbol[idx] %in% gene]
     
     if(length(idx) == 0) {
       cat("VARIANT NOT FOUND in the variants data.frame\n")
       return(invisible(NULL))
     }
+    if(length(idx) > 1) {
+      for(j in idx) traceVariant(chrom, pos, ref, alt, .row = j)
+      return(invisible(NULL))
+    }
     
-    i <- idx[1]
-    cat("=== VARIANT TRACE", chrom, pos, ref, alt, "===\n\n")
+    i <- idx
+    cat("=== VARIANT TRACE", chrom, pos, ref, alt, "| gene:", gene_symbol[i], "===\n\n")
     cat("GT:          ", variants$GT[i], "\n")
     cat("biotype:     ", biotype[i], "\n")
     cat("impact:      ", impact[i], "\n")
@@ -905,8 +919,9 @@ priorBestVariant <- function(variants, sampleName, filter="", isCodingVar=TRUE,
     in_cmphet <- i %in% cmphet_idx
     cat("[", if(in_cmphet) "YES" else "no", "] CmpHET (pre-phasing)",
         if(!in_cmphet & is_HET[i] & keep_AR_i) "(HET passes AR but gene has <2 variants)" else "", "\n")
-    in_final  <- paste(variants$CHROM[i], variants$POS[i], variants$REF[i], variants$ALT[i]) %in%
-      paste(tableEnsemble$CHROM, tableEnsemble$POS, tableEnsemble$REF, tableEnsemble$ALT)
+    cmphet_final <- tableEnsemble[tableEnsemble$inheritance == "CmpHET", ]
+    in_final  <- paste(variants$CHROM[i], variants$POS[i], variants$REF[i], variants$ALT[i], gene_symbol[i]) %in%
+      paste(cmphet_final$CHROM, cmphet_final$POS, cmphet_final$REF, cmphet_final$ALT, cmphet_final$genesList)
     cat("[", if(in_final) "YES" else "no", "] CmpHET (final table after phasing)\n")
     
     cat("\n--- DETAILED VARIANT SCORE ---\n")
